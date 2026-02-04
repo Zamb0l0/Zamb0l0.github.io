@@ -7,20 +7,44 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body { font-family: sans-serif; background: #121212; color: white; padding: 20px; display: flex; flex-direction: column; align-items: center; }
-        .form-container { width: 100%; max-width: 500px; background: #1e1e1e; padding: 20px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid #333; }
+        
+        /* --- CUSTOM CURSOR CSS --- */
+        @media (hover: hover) and (pointer: fine) {
+            * { cursor: none !important; }
+            #cursor {
+                width: 0.75rem; height: 0.75rem;
+                background-color: #00f2ff;
+                border-radius: 50%;
+                position: fixed;
+                pointer-events: none;
+                z-index: 99999;
+                transform: translate(-50%, -50%);
+                mix-blend-mode: difference;
+                transition: transform 0.15s ease-out, opacity 0.3s, background-color 0.3s;
+                will-change: transform, left, top;
+                box-shadow: 0 0 10px #00f2ff;
+            }
+            #cursor.clicking { transform: translate(-50%, -50%) scale(0.7) !important; }
+            #cursor.hovering { transform: translate(-50%, -50%) scale(5); opacity: 0.4; }
+        }
+        @media (hover: none), (pointer: coarse) { #cursor { display: none; } }
+
+        .form-container { width: 100%; max-width: 500px; background: #1e1e1e; padding: 20px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid #333; position: relative; z-index: 10; }
         h2 { color: #00f2ff; margin-top: 0; }
-        #map-selector { height: 300px; border-radius: 10px; margin-bottom: 15px; border: 2px solid #333; cursor: crosshair; }
+        #map-selector { height: 300px; border-radius: 10px; margin-bottom: 15px; border: 2px solid #333; cursor: none !important; }
         .hint { font-size: 13px; color: #888; margin-bottom: 10px; background: #222; padding: 8px; border-radius: 5px; border-left: 3px solid #00f2ff; }
         
         input, textarea, select { width: 100%; padding: 12px; margin: 8px 0; background: #2a2a2a; border: 1px solid #444; color: white; border-radius: 8px; box-sizing: border-box; font-size: 14px; }
         input:focus { border-color: #00f2ff; outline: none; }
         
-        button { width: 100%; padding: 15px; background: #00f2ff; color: #000; border: none; font-weight: bold; border-radius: 8px; cursor: pointer; font-size: 16px; margin-top: 10px; transition: 0.2s; }
+        button { width: 100%; padding: 15px; background: #00f2ff; color: #000; border: none; font-weight: bold; border-radius: 8px; cursor: none !important; font-size: 16px; margin-top: 10px; transition: 0.2s; }
         button:hover { background: #00d4e0; transform: translateY(-2px); }
-        .back-link { margin-top: 20px; color: #888; text-decoration: none; font-size: 14px; }
+        .back-link { margin-top: 20px; color: #888; text-decoration: none; font-size: 14px; z-index: 10; }
     </style>
 </head>
 <body>
+
+<div id="cursor"></div>
 
 <div class="form-container">
     <h2>Add New Skim Spot</h2>
@@ -63,9 +87,45 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
-    // --- 1. Map Logic ---
-    const map = L.map('map-selector').setView([-40.9, 174.88], 5);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    /* --- 1. Custom Cursor Logic --- */
+    (function () {
+        const cursor = document.getElementById('cursor');
+        if (!cursor || !window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+
+        let mouseX = 0, mouseY = 0, cursorX = 0, cursorY = 0;
+
+        document.addEventListener('mousemove', (e) => {
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+        }, { passive: true });
+
+        function animate() {
+            cursorX += (mouseX - cursorX) * 0.15;
+            cursorY += (mouseY - cursorY) * 0.15;
+            cursor.style.left = cursorX + 'px';
+            cursor.style.top = cursorY + 'px';
+            requestAnimationFrame(animate);
+        }
+        animate();
+
+        document.addEventListener('mousedown', () => cursor.classList.add('clicking'));
+        document.addEventListener('mouseup', () => cursor.classList.remove('clicking'));
+
+        // Interactive targets for form page
+        const hoverTargets = 'a, button, input, select, textarea, label, #map-selector';
+        document.addEventListener('mouseover', (e) => {
+            if (e.target.closest(hoverTargets)) cursor.classList.add('hovering');
+        });
+        document.addEventListener('mouseout', (e) => {
+            if (e.target.closest(hoverTargets)) cursor.classList.remove('hovering');
+        });
+    })();
+
+    // --- 2. Map Logic ---
+    const map = L.map('map-selector', { zoomControl: false }).setView([-40.9, 174.88], 5);
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles &copy; Esri'
+    }).addTo(map);
 
     let marker;
     map.on('click', function(e) {
@@ -75,7 +135,7 @@
         document.getElementById('lng').value = e.latlng.lng.toFixed(6);
     });
 
-    // --- 2. Supabase Logic ---
+    // --- 3. Supabase Logic ---
     const SUPABASE_URL = 'https://igntxtfvlcewvqazkwyf.supabase.co';
     const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlnbnR4dGZ2bGNld3ZxYXprd3lmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxOTM0ODMsImV4cCI6MjA4NTc2OTQ4M30.mxlSU_vXTzcgJO-WtB-qp9m9lKlC_PuYq2c__9m1UR8';
     const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -86,7 +146,6 @@
         btn.innerText = "Processing...";
         btn.disabled = true;
 
-        // UPDATED: Sending the status to Supabase
         const { error } = await sb.from('spots').insert([{
             name: document.getElementById('name').value,
             type: document.getElementById('type').value,
@@ -94,7 +153,7 @@
             lng: parseFloat(document.getElementById('lng').value),
             description: document.getElementById('description').value,
             image_url: document.getElementById('image_url').value,
-            current_status: document.getElementById('current_status').value, // This line was missing!
+            current_status: document.getElementById('current_status').value,
             is_approved: false 
         }]);
 
