@@ -10,6 +10,31 @@
         body, html { margin: 0; padding: 0; height: 100%; font-family: sans-serif; overflow: hidden; background: #000; }
         #map { height: 100vh; width: 100vw; z-index: 1; }
 
+        /* --- CUSTOM CURSOR CSS --- */
+        @media (hover: hover) and (pointer: fine) {
+            * { cursor: none !important; }
+            #cursor {
+                width: 0.75rem; height: 0.75rem;
+                background-color: #00f2ff;
+                border-radius: 50%;
+                position: fixed;
+                pointer-events: none;
+                z-index: 99999;
+                transform: translate(-50%, -50%);
+                mix-blend-mode: difference;
+                transition: transform 0.15s ease-out, opacity 0.3s, background-color 0.3s;
+                will-change: transform, left, top;
+                box-shadow: 0 0 10px #00f2ff;
+            }
+            #cursor.clicking { transform: translate(-50%, -50%) scale(0.7) !important; }
+            #cursor.hovering { transform: translate(-50%, -50%) scale(5); opacity: 0.6; }
+            
+            /* Specific Hover Colors */
+            #cursor.hover-wave { background-color: #0088ff !important; box-shadow: 0 0 15px #0088ff; }
+            #cursor.hover-flat { background-color: #00ff88 !important; box-shadow: 0 0 15px #00ff88; }
+        }
+        @media (hover: none), (pointer: coarse) { #cursor { display: none; } }
+
         #title-card {
             position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
             z-index: 1000; background: rgba(0,0,0,0.8); color: white;
@@ -17,18 +42,8 @@
             box-shadow: 0 4px 15px rgba(0,0,0,0.3); border: 2px solid #00f2ff; pointer-events: none;
         }
         #title-card h1 { margin: 0; font-size: 24px; }
-
-        #locate-btn {
-            position: absolute; bottom: 30px; left: 20px; z-index: 1000;
-            background: #00f2ff; color: black; border: none; padding: 12px 18px;
-            border-radius: 8px; font-weight: bold; cursor: pointer;
-        }
-
-        #add-link {
-            position: absolute; bottom: 30px; right: 20px; z-index: 1000;
-            background: rgba(255,255,255,0.9); color: black; padding: 12px 18px;
-            border-radius: 8px; text-decoration: none; font-weight: bold;
-        }
+        #locate-btn { position: absolute; bottom: 30px; left: 20px; z-index: 1000; background: #00f2ff; color: black; border: none; padding: 12px 18px; border-radius: 8px; font-weight: bold; }
+        #add-link { position: absolute; bottom: 30px; right: 20px; z-index: 1000; background: rgba(255,255,255,0.9); color: black; padding: 12px 18px; border-radius: 8px; text-decoration: none; font-weight: bold; }
 
         #info-panel {
             position: fixed; top: 0; right: -400px; width: 350px; height: 100%;
@@ -38,25 +53,18 @@
         }
         #info-panel.active { right: 0; }
         .close-btn { cursor: pointer; float: right; font-size: 30px; }
-        
         #share-btn { margin-top: 15px; padding: 10px; background: #f0f0f0; border: 1px solid #ddd; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 12px; }
         #spot-img { width: 100%; border-radius: 8px; margin-top: 15px; min-height: 200px; object-fit: cover; background: #eee; }
-        .pin { width: 15px; height: 15px; border-radius: 50%; border: 2px solid white; }
-        .pin-flatland { background: #00ff88; box-shadow: 0 0 10px #00ff88; }
-        .pin-wave { background: #0088ff; box-shadow: 0 0 10px #0088ff; }
         .user-location-pulse { width: 12px; height: 12px; background: #fff; border: 3px solid #00f2ff; border-radius: 50%; box-shadow: 0 0 15px #00f2ff; }
 
-        /* TIDE WIDGET CSS */
-        #tide-box {
-            background: #e6f7ff; border-left: 4px solid #0088ff;
-            padding: 10px; margin-top: 15px; border-radius: 4px;
-            font-size: 13px; color: #004488;
-        }
+        #tide-box { background: #e6f7ff; border-left: 4px solid #0088ff; padding: 10px; margin-top: 15px; border-radius: 4px; font-size: 13px; color: #004488; }
         .tide-row { display: flex; justify-content: space-between; margin-top: 5px; border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom:2px; }
         .tide-label { font-weight: bold; }
     </style>
 </head>
 <body>
+
+    <div id="cursor"></div>
 
     <div id="title-card"><h1>SKIM AOTEAROA</h1></div>
     <button id="locate-btn" onclick="locateUser()">🎯 FIND MY BEACH</button>
@@ -67,14 +75,11 @@
         <h2 id="spot-name" style="margin-top:10px;">Spot Name</h2>
         <div id="status-badge" style="display:inline-block; padding: 5px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-bottom: 10px; color: white;"></div>
         <p id="spot-type" style="text-transform: uppercase; font-weight: bold; font-size: 12px; margin: 0;"></p>
-        
         <p id="spot-desc" style="line-height: 1.6; color: #444; margin-bottom: 0;"></p>
-
         <div id="tide-box" style="display:none;">
             <div style="font-weight:bold; margin-bottom:5px;">🌊 TIDE FORECAST</div>
             <div id="tide-content">Loading...</div>
         </div>
-
         <button id="share-btn" onclick="copyShareLink()">🔗 COPY SHARE LINK</button>
         <img id="spot-img" src="" alt="Spot Photo">
     </div>
@@ -85,6 +90,39 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <script>
+        /* --- 1. Custom Cursor Logic --- */
+        (function () {
+            const cursor = document.getElementById('cursor');
+            if (!cursor || !window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+
+            let mouseX = 0, mouseY = 0, cursorX = 0, cursorY = 0;
+
+            document.addEventListener('mousemove', (e) => {
+                mouseX = e.clientX; mouseY = e.clientY;
+            }, { passive: true });
+
+            function animate() {
+                cursorX += (mouseX - cursorX) * 0.15;
+                cursorY += (mouseY - cursorY) * 0.15;
+                cursor.style.left = cursorX + 'px';
+                cursor.style.top = cursorY + 'px';
+                requestAnimationFrame(animate);
+            }
+            animate();
+
+            document.addEventListener('mousedown', () => cursor.classList.add('clicking'));
+            document.addEventListener('mouseup', () => cursor.classList.remove('clicking'));
+
+            const hoverTargets = 'a, button, .close-btn, h1, h2, p, .leaflet-marker-icon';
+            document.addEventListener('mouseover', (e) => {
+                if (e.target.closest(hoverTargets)) cursor.classList.add('hovering');
+            });
+            document.addEventListener('mouseout', (e) => {
+                if (e.target.closest(hoverTargets)) cursor.classList.remove('hovering');
+            });
+        })();
+
+        /* --- 2. Map & Supabase --- */
         const map = L.map('map', { zoomControl: false }).setView([-40.9, 174.88], 6);
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Tiles &copy; Esri', maxZoom: 19 }).addTo(map);
 
@@ -92,69 +130,39 @@
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlnbnR4dGZ2bGNld3ZxYXprd3lmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxOTM0ODMsImV4cCI6MjA4NTc2OTQ4M30.mxlSU_vXTzcgJO-WtB-qp9m9lKlC_PuYq2c__9m1UR8';
         const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        let currentSpotId = null;
+        const waveIcon = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png', shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41] });
+        const flatIcon = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png', shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41] });
 
-        function locateUser() { map.locate({setView: true, maxZoom: 15}); }
-        map.on('locationfound', (e) => { L.marker(e.latlng, { icon: L.divIcon({ className: 'user-location-pulse' }) }).addTo(map); });
+        async function loadSpots() {
+            const { data } = await sb.from('spots').select('*').eq('is_approved', true);
+            if (data) {
+                data.forEach(spot => {
+                    const icon = spot.type === 'wave' ? waveIcon : flatIcon;
+                    const marker = L.marker([spot.lat, spot.lng], { icon: icon }).addTo(map);
+                    
+                    // Reactive Cursor on Pins
+                    marker.on('mouseover', () => {
+                        const c = document.getElementById('cursor');
+                        if (spot.type === 'wave') c.classList.add('hover-wave');
+                        else c.classList.add('hover-flat');
+                    });
+                    marker.on('mouseout', () => {
+                        const c = document.getElementById('cursor');
+                        c.classList.remove('hover-wave', 'hover-flat');
+                    });
 
-       // --- 3. CUSTOM ICONS ---
-// This is where you will swap in your own PNGs later!
-const waveIcon = L.icon({
-    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
-    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-    iconSize: [25, 41],      // Size of the icon [width, height]
-    iconAnchor: [12, 41],    // Point of the icon which will correspond to marker's location
-    popupAnchor: [1, -34],   // Point from which the popup should open relative to the iconAnchor
-    shadowSize: [41, 41]     // Size of the shadow
-});
-
-const flatIcon = L.icon({
-    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
-    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
-    iconSize: [25, 41],
-    iconAnchor: [12, 41],
-    popupAnchor: [1, -34],
-    shadowSize: [41, 41]
-});
-
-// --- 4. FETCH & DISPLAY SPOTS ---
-async function loadSpots() {
-    const { data, error } = await sb.from('spots').select('*').eq('is_approved', true);
-    if (data) {
-        data.forEach(spot => {
-            
-            // Choose the icon based on the spot type
-            let chosenIcon;
-            if (spot.type === 'wave') {
-                chosenIcon = waveIcon;
-            } else {
-                chosenIcon = flatIcon;
+                    marker.on('click', () => openSpot(spot));
+                });
             }
-
-            const marker = L.marker([spot.lat, spot.lng], { icon: chosenIcon }).addTo(map);
-            
-            marker.on('click', () => openSpot(spot));
-        });
-
-        // Check URL for shared spot
-        const urlParams = new URLSearchParams(window.location.search);
-        const sharedId = urlParams.get('spot');
-        if (sharedId) {
-            const sharedSpot = data.find(s => s.id == sharedId);
-            if (sharedSpot) openSpot(sharedSpot);
         }
-    }
-}
 
         function openSpot(spot) {
-            currentSpotId = spot.id;
             document.getElementById('spot-name').innerText = spot.name;
             document.getElementById('spot-type').innerText = spot.type + " spot";
             document.getElementById('spot-type').style.color = spot.type === 'wave' ? '#0088ff' : '#00ff88';
             document.getElementById('spot-desc').innerText = spot.description || "No description.";
             document.getElementById('spot-img').src = spot.image_url || 'https://via.placeholder.com/300';
             
-            // Status Badge
             const badge = document.getElementById('status-badge');
             const status = spot.current_status || 'unknown';
             badge.innerText = "CONDITIONS: " + status.replace('_', ' ').toUpperCase();
@@ -163,69 +171,26 @@ async function loadSpots() {
 
             document.getElementById('info-panel').classList.add('active');
             map.flyTo([spot.lat, spot.lng], 16, { duration: 2 });
-            window.history.pushState({}, '', `?spot=${spot.id}`);
-
-            // FETCH TIDES!
             getTides(spot.lat, spot.lng);
         }
 
         async function getTides(lat, lng) {
-            const tideBox = document.getElementById('tide-box');
             const tideContent = document.getElementById('tide-content');
-            tideBox.style.display = 'block';
-            tideContent.innerHTML = 'Loading tides...';
-
+            document.getElementById('tide-box').style.display = 'block';
             try {
-                // Fetch 3 days of data to ensure we catch tomorrow's tides if it's late at night
-                const response = await fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lng}&daily=tide_high,tide_low&timezone=Pacific%2FAuckland&forecast_days=3`);
-                const data = await response.json();
-
+                const res = await fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lng}&daily=tide_high,tide_low&timezone=Pacific%2FAuckland&forecast_days=3`);
+                const data = await res.json();
                 let tides = [];
-                // Flatten the arrays
-                if(data.daily && data.daily.tide_high) {
-                    data.daily.tide_high.forEach(t => tides.push({ time: t, type: 'HIGH ⬆️' }));
-                    data.daily.tide_low.forEach(t => tides.push({ time: t, type: 'LOW ⬇️' }));
-                }
-                
-                // Sort by time
+                data.daily.tide_high.forEach(t => tides.push({ time: t, type: 'HIGH ⬆️' }));
+                data.daily.tide_low.forEach(t => tides.push({ time: t, type: 'LOW ⬇️' }));
                 tides.sort((a, b) => new Date(a.time) - new Date(b.time));
-
-                // Filter for next 24h
-                const now = new Date();
-                const futureTides = tides.filter(t => new Date(t.time) > now).slice(0, 3);
-
-                let html = '';
-                if(futureTides.length === 0) {
-                     html = 'No tide data available.';
-                } else {
-                    futureTides.forEach(t => {
-                        const dateObj = new Date(t.time);
-                        const timeStr = dateObj.toLocaleTimeString('en-NZ', { hour: 'numeric', minute: '2-digit' });
-                        // Add day check (e.g. "Tomorrow")
-                        const isTomorrow = dateObj.getDate() !== now.getDate();
-                        const dayLabel = isTomorrow ? ' (Tmrw)' : '';
-                        
-                        html += `<div class="tide-row"><span class="tide-label">${t.type}</span> <span>${timeStr}${dayLabel}</span></div>`;
-                    });
-                }
-                tideContent.innerHTML = html;
-            } catch (err) {
-                console.error(err);
-                tideContent.innerHTML = "Tide service unavailable.";
-            }
+                const future = tides.filter(t => new Date(t.time) > new Date()).slice(0, 3);
+                tideContent.innerHTML = future.map(t => `<div class="tide-row"><b>${t.type}</b> <span>${new Date(t.time).toLocaleTimeString('en-NZ', {hour:'numeric', minute:'2-digit'})}</span></div>`).join('');
+            } catch { tideContent.innerHTML = "Tide service unavailable."; }
         }
 
-        function copyShareLink() {
-            const shareUrl = window.location.href;
-            navigator.clipboard.writeText(shareUrl);
-            alert("Link copied to clipboard!");
-        }
-
-        function closePanel() {
-            document.getElementById('info-panel').classList.remove('active');
-            window.history.pushState({}, '', window.location.pathname);
-        }
-
+        function closePanel() { document.getElementById('info-panel').classList.remove('active'); }
+        function locateUser() { map.locate({setView: true, maxZoom: 15}); }
         loadSpots();
     </script>
 </body>
