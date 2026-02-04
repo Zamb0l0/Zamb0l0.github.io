@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body, html { margin: 0; padding: 0; height: 100%; font-family: sans-serif; overflow: hidden; background: #000; }
-        #map { height: 100vh; width: 100vw; z-index: 1; background: #000; }
+        #map { height: 100vh; width: 100vw; z-index: 1; }
 
         /* --- CUSTOM CURSOR CSS --- */
         @media (hover: hover) and (pointer: fine) {
@@ -42,11 +42,10 @@
         }
         #title-card h1 { margin: 0; font-size: 24px; }
 
-        /* Region Selector Styling */
-        #region-select {
-            position: absolute; top: 20px; left: 20px; z-index: 1000;
-            background: rgba(0,0,0,0.8); color: white; border: 1px solid #00f2ff;
-            padding: 10px; border-radius: 8px; font-weight: bold; outline: none;
+        #region-container { position: absolute; top: 20px; left: 20px; z-index: 1000; display: flex; flex-direction: column; gap: 5px; }
+        #region-select { 
+            background: rgba(0,0,0,0.8); color: white; border: 1px solid #00f2ff; 
+            padding: 10px; border-radius: 8px; font-weight: bold; outline: none; width: 200px;
         }
 
         #locate-btn { position: absolute; bottom: 30px; left: 20px; z-index: 1000; background: #00f2ff; color: black; border: none; padding: 12px 18px; border-radius: 8px; font-weight: bold; }
@@ -56,24 +55,35 @@
             position: fixed; top: 0; right: -400px; width: 350px; height: 100%;
             background: white; z-index: 2000; transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
             box-shadow: -5px 0 15px rgba(0,0,0,0.2); padding: 20px;
-            display: flex; flex-direction: column; overflow-y: auto;
+            display: flex; flex-direction: column; overflow-y: auto; color: #333;
         }
         #info-panel.active { right: 0; }
-        .close-btn { cursor: pointer; float: right; font-size: 30px; color: black; }
+        .close-btn { cursor: pointer; float: right; font-size: 30px; }
+        #share-btn { margin-top: 15px; padding: 10px; background: #f0f0f0; border: 1px solid #ddd; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 12px; }
+        #spot-img { width: 100%; border-radius: 8px; margin-top: 15px; min-height: 200px; object-fit: cover; background: #eee; }
+
         #tide-box { background: #e6f7ff; border-left: 4px solid #0088ff; padding: 10px; margin-top: 15px; border-radius: 4px; font-size: 13px; color: #004488; }
         .tide-row { display: flex; justify-content: space-between; margin-top: 5px; border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom:2px; }
-        #spot-img { width: 100%; border-radius: 8px; margin-top: 15px; min-height: 200px; object-fit: cover; background: #eee; }
     </style>
 </head>
 <body>
 
     <div id="cursor"></div>
 
-    <select id="region-select" onchange="handleRegionChange(this.value)">
-        <option value="nz">ALL NEW ZEALAND</option>
-        <option value="northland">NORTHLAND</option>
-        <option value="auckland">AUCKLAND</option>
-    </select>
+    <div id="region-container">
+        <select id="region-select" onchange="handleRegionChange(this.value)">
+            <option value="nz">ALL NEW ZEALAND</option>
+            <option value="northland">NORTHLAND</option>
+            <option value="auckland">AUCKLAND</option>
+            <option value="waikato">WAIKATO</option>
+            <option value="bop">BAY OF PLENTY</option>
+            <option value="gisborne">GISBORNE</option>
+            <option value="taranaki">TARANAKI</option>
+            <option value="wellington">WELLINGTON</option>
+            <option value="canterbury">CANTERBURY</option>
+            <option value="otago">OTAGO</option>
+        </select>
+    </div>
 
     <div id="title-card"><h1>SKIM AOTEAROA</h1></div>
     <button id="locate-btn" onclick="locateUser()">🎯 FIND MY BEACH</button>
@@ -81,7 +91,7 @@
 
     <div id="info-panel">
         <div><span class="close-btn" onclick="closePanel()">&times;</span></div>
-        <h2 id="spot-name" style="margin-top:10px; color: black;">Spot Name</h2>
+        <h2 id="spot-name" style="margin-top:10px;">Spot Name</h2>
         <div id="status-badge" style="display:inline-block; padding: 5px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-bottom: 10px; color: white;"></div>
         <p id="spot-type" style="text-transform: uppercase; font-weight: bold; font-size: 12px; margin: 0;"></p>
         <p id="spot-desc" style="line-height: 1.6; color: #444; margin-bottom: 0;"></p>
@@ -89,6 +99,7 @@
             <div style="font-weight:bold; margin-bottom:5px;">🌊 TIDE FORECAST</div>
             <div id="tide-content">Loading...</div>
         </div>
+        <button id="share-btn" onclick="copyShareLink()">🔗 COPY SHARE LINK</button>
         <img id="spot-img" src="" alt="Spot Photo">
     </div>
 
@@ -118,50 +129,58 @@
             document.addEventListener('mouseout', (e) => { if (e.target.closest(hoverTargets)) cursor.classList.remove('hovering'); });
         })();
 
-        /* --- 2. Map Setup --- */
+        /* --- 2. Map & Region Logic --- */
         const map = L.map('map', { zoomControl: false }).setView([-40.9, 174.88], 6);
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri', maxZoom: 19 }).addTo(map);
 
-        /* --- 3. Region Masking Logic --- */
         let activeMask = null;
+        let activeOutline = null;
 
-        const regionCoords = {
-            "northland": [
-                [-34.3, 172.4], [-35.0, 174.1], [-36.1, 174.7], [-36.4, 174.3], [-35.8, 173.0], [-34.3, 172.4]
-            ],
-            "auckland": [
-                [-36.4, 174.2], [-36.0, 174.9], [-37.1, 175.2], [-37.3, 174.6], [-36.4, 174.2]
-            ]
+        const regions = {
+            "northland": [[-34.3, 172.4], [-35.0, 174.1], [-36.1, 174.7], [-36.4, 174.3], [-35.8, 173.0], [-34.3, 172.4]],
+            "auckland": [[-36.4, 174.2], [-36.0, 174.9], [-37.1, 175.2], [-37.3, 174.6], [-36.4, 174.2]],
+            "waikato": [[-37.2, 174.6], [-36.4, 175.5], [-36.4, 175.9], [-38.2, 176.1], [-38.6, 174.5], [-37.2, 174.6]],
+            "bop": [[-37.3, 175.8], [-37.4, 177.8], [-38.2, 177.3], [-39.0, 176.0], [-37.3, 175.8]],
+            "gisborne": [[-37.5, 177.8], [-37.5, 178.6], [-39.1, 177.9], [-38.7, 177.0], [-37.5, 177.8]],
+            "taranaki": [[-38.6, 174.5], [-39.1, 175.0], [-39.9, 174.8], [-39.8, 173.6], [-38.6, 174.5]],
+            "wellington": [[-40.6, 174.8], [-41.0, 176.2], [-41.6, 175.3], [-41.3, 174.6], [-40.6, 174.8]],
+            "canterbury": [[-42.3, 172.5], [-43.0, 174.0], [-44.8, 171.3], [-44.9, 170.1], [-42.3, 172.5]],
+            "otago": [[-44.4, 169.0], [-45.1, 171.0], [-46.7, 169.8], [-46.6, 168.2], [-44.4, 169.0]]
         };
 
-        function applyMask(holeCoords) {
+        function handleRegionChange(val) {
             if (activeMask) map.removeLayer(activeMask);
-            
-            // World boundary coordinates
+            if (activeOutline) map.removeLayer(activeOutline);
+
+            if (val === "nz") {
+                map.flyTo([-40.9, 174.88], 6);
+                return;
+            }
+
+            const coords = regions[val];
             const world = [[-90, -180], [-90, 180], [90, 180], [90, -180]];
-            
-            // Create polygon with hole: [OuterBoundary, InnerHole]
-            activeMask = L.polygon([world, holeCoords], {
+
+            // The Dimming Mask
+            activeMask = L.polygon([world, coords], {
                 color: 'transparent',
                 fillColor: 'white',
-                fillOpacity: 0.4,
+                fillOpacity: 0.35,
                 pointerEvents: 'none'
             }).addTo(map);
+
+            // The Sharp White Outline
+            activeOutline = L.polygon(coords, {
+                color: 'white',
+                weight: 2,
+                fillColor: 'transparent',
+                dashArray: '5, 10'
+            }).addTo(map);
+
+            const bounds = L.polygon(coords).getBounds();
+            map.flyToBounds(bounds, { padding: [50, 50], duration: 1.5 });
         }
 
-        function handleRegionChange(val) {
-            if (val === "nz") {
-                if (activeMask) map.removeLayer(activeMask);
-                map.flyTo([-40.9, 174.88], 6);
-            } else if (regionCoords[val]) {
-                applyMask(regionCoords[val]);
-                // Center map on the region hole
-                const bounds = L.polygon(regionCoords[val]).getBounds();
-                map.flyToBounds(bounds, { padding: [50, 50], duration: 1.5 });
-            }
-        }
-
-        /* --- 4. Supabase & Spots --- */
+        /* --- 3. Supabase & Spots --- */
         const SUPABASE_URL = 'https://igntxtfvlcewvqazkwyf.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlnbnR4dGZ2bGNld3ZxYXprd3lmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxOTM0ODMsImV4cCI6MjA4NTc2OTQ4M30.mxlSU_vXTzcgJO-WtB-qp9m9lKlC_PuYq2c__9m1UR8';
         const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -180,7 +199,7 @@
                         c.classList.add(spot.type === 'wave' ? 'hover-wave' : 'hover-flat');
                     });
                     marker.on('mouseout', () => {
-                        const c = document.getElementById('cursor').classList.remove('hover-wave', 'hover-flat');
+                        document.getElementById('cursor').classList.remove('hover-wave', 'hover-flat');
                     });
                     marker.on('click', () => openSpot(spot));
                 });
