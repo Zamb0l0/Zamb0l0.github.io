@@ -27,25 +27,34 @@
     <p class="hint">📍 Click the map to drop a pin on the spot.</p>
     <div id="map-selector"></div>
 
-    <form id="skim-form">
-        <div style="display: flex; gap: 10px;">
-            <input type="text" id="lat" placeholder="Latitude" readonly required>
-            <input type="text" id="lng" placeholder="Longitude" readonly required>
-        </div>
-        
-        <input type="text" id="name" placeholder="Spot Name (e.g. Rabbit Island Flatlands)" required>
-        
-        <select id="type">
-            <option value="flatland">Flatland Spot (Estuary/Inland)</option>
-            <option value="wave">Wave / Shorebreak Spot</option>
-        </select>
+   <form id="skim-form">
+    <div style="display: flex; gap: 10px;">
+        <input type="text" id="lat" placeholder="Latitude" readonly required>
+        <input type="text" id="lng" placeholder="Longitude" readonly required>
+    </div>
+    
+    <input type="text" id="name" placeholder="Spot Name (e.g. Rabbit Island Flatlands)" required>
+    
+    <select id="type">
+        <option value="flatland">Flatland Spot (Estuary/Inland)</option>
+        <option value="wave">Wave / Shorebreak Spot</option>
+    </select>
 
-        <textarea id="description" rows="3" placeholder="Describe the spot, best tide, or local tips..."></textarea>
-        
-        <input type="url" id="image_url" placeholder="Photo URL (Link to an image)">
-        
-        <button type="submit" id="submit-btn">Submit for Moderation</button>
-    </form>
+    <textarea id="description" rows="3" placeholder="Describe the spot, best tide, or local tips..."></textarea>
+    
+    <input type="url" id="image_url" placeholder="Photo URL (Link to an image)">
+    
+    <label style="font-size: 12px; color: #888; display: block; margin-top: 10px;">Current Conditions:</label>
+    <select id="current_status">
+        <option value="unknown">Unknown / Not Checked</option>
+        <option value="firing">🔥 Firing (Perfect Conditions)</option>
+        <option value="good">✅ Good to Go</option>
+        <option value="flat">⏳ Flat / Waiting for Tide</option>
+        <option value="blown_out">🌬️ Blown Out / Choppy</option>
+    </select>
+    
+    <button type="submit" id="submit-btn">Submit for Moderation</button>
+</form>
 </div>
 
 <a href="index.html" class="back-link">← Back to Map</a>
