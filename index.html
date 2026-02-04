@@ -17,14 +17,30 @@
             z-index: 1000; background: rgba(0,0,0,0.8); color: white;
             padding: 10px 30px; border-radius: 50px; letter-spacing: 2px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.3); border: 2px solid #00f2ff;
-            pointer-events: none; /* Allows you to click the map through the title */
+            pointer-events: none;
         }
         #title-card h1 { margin: 0; font-size: 24px; }
+
+        /* Locate Button */
+        #locate-btn {
+            position: absolute; bottom: 30px; left: 20px; z-index: 1000;
+            background: #00f2ff; color: black; border: none; padding: 12px 18px;
+            border-radius: 8px; font-weight: bold; cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4); font-size: 14px;
+        }
+        #locate-btn:hover { background: #fff; }
+
+        /* Add Spot Link */
+        #add-link {
+            position: absolute; bottom: 30px; right: 20px; z-index: 1000;
+            background: rgba(255,255,255,0.9); color: black; padding: 12px 18px;
+            border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 14px;
+        }
 
         /* Secondary Stage (Side Panel) */
         #info-panel {
             position: fixed; top: 0; right: -400px; width: 350px; height: 100%;
-            background: white; z-index: 2000; transition: 0.4s;
+            background: white; z-index: 2000; transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
             box-shadow: -5px 0 15px rgba(0,0,0,0.2); padding: 20px;
             display: flex; flex-direction: column; overflow-y: auto;
         }
@@ -36,11 +52,20 @@
         .pin { width: 15px; height: 15px; border-radius: 50%; border: 2px solid white; }
         .pin-flatland { background: #00ff88; box-shadow: 0 0 10px #00ff88; }
         .pin-wave { background: #0088ff; box-shadow: 0 0 10px #0088ff; }
+        
+        /* Pulse Animation for Current Location */
+        .user-location-pulse {
+            width: 12px; height: 12px; background: #fff; border: 3px solid #00f2ff;
+            border-radius: 50%; box-shadow: 0 0 15px #00f2ff;
+        }
     </style>
 </head>
 <body>
 
     <div id="title-card"><h1>SKIM AOTEAROA</h1></div>
+
+    <button id="locate-btn" onclick="locateUser()">🎯 FIND MY BEACH</button>
+    <a href="add.html" id="add-link">➕ ADD SPOT</a>
 
     <div id="info-panel">
         <div><span class="close-btn" onclick="closePanel()">&times;</span></div>
@@ -57,30 +82,41 @@
 
     <script>
         // --- 1. SETUP MAP ---
-        const map = L.map('map', { zoomControl: false }).setView([-40.9, 174.88], 6);
+        const map = L.map('map', { zoomControl: false, worldCopyJump: true }).setView([-40.9, 174.88], 6);
 
+        // Best Quality Satellite Tiles
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-            attribution: 'Tiles &copy; Esri'
+            attribution: 'Tiles &copy; Esri',
+            maxZoom: 19
         }).addTo(map);
 
         // --- 2. SUPABASE CONFIG ---
         const SUPABASE_URL = 'https://igntxtfvlcewvqazkwyf.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlnbnR4dGZ2bGNld3ZxYXprd3lmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxOTM0ODMsImV4cCI6MjA4NTc2OTQ4M30.mxlSU_vXTzcgJO-WtB-qp9m9lKlC_PuYq2c__9m1UR8';
-        
-        // I changed the name from 'supabase' to 'sb' to fix the error
         const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        // --- 3. FETCH & DISPLAY SPOTS ---
+        // --- 3. LOCATION LOGIC ---
+        function locateUser() {
+            map.locate({setView: true, maxZoom: 15});
+        }
+
+        map.on('locationfound', function(e) {
+            const userIcon = L.divIcon({ className: 'user-location-pulse' });
+            L.marker(e.latlng, { icon: userIcon }).addTo(map).bindPopup("You are here").openPopup();
+        });
+
+        map.on('locationerror', function() {
+            alert("Could not find your location. Please check GPS settings.");
+        });
+
+        // --- 4. FETCH & DISPLAY SPOTS ---
         async function loadSpots() {
             const { data, error } = await sb
                 .from('spots')
                 .select('*')
                 .eq('is_approved', true);
 
-            if (error) {
-                console.error("Database error:", error.message);
-                return;
-            }
+            if (error) { console.error("Database error:", error.message); return; }
 
             if (data) {
                 data.forEach(spot => {
@@ -94,7 +130,7 @@
                     
                     marker.on('click', () => {
                         showPanel(spot);
-                        map.flyTo([spot.lat, spot.lng], 14, { duration: 1.5 });
+                        map.flyTo([spot.lat, spot.lng], 16, { duration: 2 }); // Deep zoom for 3D feel
                     });
                 });
             }
