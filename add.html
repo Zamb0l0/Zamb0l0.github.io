@@ -2,42 +2,53 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Add a Spot - SKIM AOTEAROA</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body { font-family: sans-serif; background: #121212; color: white; padding: 20px; }
-        .form-container { max-width: 500px; margin: 0 auto; background: #1e1e1e; padding: 20px; border-radius: 10px; }
-        #map-selector { height: 250px; border-radius: 8px; margin-bottom: 15px; cursor: crosshair; }
-        input, textarea, select { width: 100%; padding: 10px; margin: 10px 0; background: #333; border: 1px solid #444; color: white; border-radius: 5px; box-sizing: border-box; }
-        button { width: 100%; padding: 12px; background: #00f2ff; color: black; border: none; font-weight: bold; border-radius: 5px; cursor: pointer; }
-        .hint { font-size: 12px; color: #888; margin-bottom: 5px; }
+        body { font-family: sans-serif; background: #121212; color: white; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        .form-container { width: 100%; max-width: 500px; background: #1e1e1e; padding: 20px; border-radius: 15px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 1px solid #333; }
+        h2 { color: #00f2ff; margin-top: 0; }
+        #map-selector { height: 300px; border-radius: 10px; margin-bottom: 15px; border: 2px solid #333; cursor: crosshair; }
+        .hint { font-size: 13px; color: #888; margin-bottom: 10px; background: #222; padding: 8px; border-radius: 5px; border-left: 3px solid #00f2ff; }
+        
+        input, textarea, select { width: 100%; padding: 12px; margin: 8px 0; background: #2a2a2a; border: 1px solid #444; color: white; border-radius: 8px; box-sizing: border-box; font-size: 14px; }
+        input:focus { border-color: #00f2ff; outline: none; }
+        
+        button { width: 100%; padding: 15px; background: #00f2ff; color: #000; border: none; font-weight: bold; border-radius: 8px; cursor: pointer; font-size: 16px; margin-top: 10px; transition: 0.2s; }
+        button:hover { background: #00d4e0; transform: translateY(-2px); }
+        .back-link { margin-top: 20px; color: #888; text-decoration: none; font-size: 14px; }
     </style>
 </head>
 <body>
 
 <div class="form-container">
     <h2>Add New Skim Spot</h2>
-    <p class="hint">1. Click on the map to drop a pin</p>
+    <p class="hint">📍 Click the map to drop a pin on the spot.</p>
     <div id="map-selector"></div>
 
     <form id="skim-form">
-        <input type="text" id="lat" name="lat" placeholder="Latitude" readonly required>
-        <input type="text" id="lng" name="lng" placeholder="Longitude" readonly required>
+        <div style="display: flex; gap: 10px;">
+            <input type="text" id="lat" placeholder="Latitude" readonly required>
+            <input type="text" id="lng" placeholder="Longitude" readonly required>
+        </div>
         
-        <input type="text" id="name" placeholder="Spot Name (e.g. Muriwai Lefts)" required>
+        <input type="text" id="name" placeholder="Spot Name (e.g. Rabbit Island Flatlands)" required>
         
         <select id="type">
-            <option value="flatland">Flatland Spot</option>
-            <option value="wave">Wave / Shorebreak</option>
+            <option value="flatland">Flatland Spot (Estuary/Inland)</option>
+            <option value="wave">Wave / Shorebreak Spot</option>
         </select>
 
-        <textarea id="description" rows="4" placeholder="Describe the conditions, best tide, parking, etc."></textarea>
+        <textarea id="description" rows="3" placeholder="Describe the spot, best tide, or local tips..."></textarea>
         
-        <input type="url" id="image_url" placeholder="Photo Link (use an imgur link for now)">
+        <input type="url" id="image_url" placeholder="Photo URL (Link to an image)">
         
-        <button type="submit" id="submit-btn">Submit for Review</button>
+        <button type="submit" id="submit-btn">Submit for Moderation</button>
     </form>
 </div>
+
+<a href="index.html" class="back-link">← Back to Map</a>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -45,6 +56,8 @@
 <script>
     // --- 1. Map Logic ---
     const map = L.map('map-selector').setView([-40.9, 174.88], 5);
+    
+    // Using standard map for faster loading on form page
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
 
     let marker;
@@ -56,30 +69,32 @@
     });
 
     // --- 2. Supabase Logic ---
-    const SUPABASE_URL = 'YOUR_SUPABASE_URL';
-    const SUPABASE_KEY = 'YOUR_SUPABASE_ANON_KEY';
-    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    const SUPABASE_URL = 'https://igntxtfvlcewvqazkwyf.supabase.co';
+    const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlnbnR4dGZ2bGNld3ZxYXprd3lmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxOTM0ODMsImV4cCI6MjA4NTc2OTQ4M30.mxlSU_vXTzcgJO-WtB-qp9m9lKlC_PuYq2c__9m1UR8';
+    const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     document.getElementById('skim-form').onsubmit = async (e) => {
         e.preventDefault();
         const btn = document.getElementById('submit-btn');
-        btn.innerText = "Sending...";
+        btn.innerText = "Processing...";
+        btn.disabled = true;
 
-        const { error } = await supabaseClient.from('spots').insert([{
+        const { error } = await sb.from('spots').insert([{
             name: document.getElementById('name').value,
             type: document.getElementById('type').value,
             lat: parseFloat(document.getElementById('lat').value),
             lng: parseFloat(document.getElementById('lng').value),
             description: document.getElementById('description').value,
             image_url: document.getElementById('image_url').value,
-            is_approved: false // Starts as hidden for mod review
+            is_approved: false // Mandatory for moderation
         }]);
 
         if (error) {
             alert("Error: " + error.message);
-            btn.innerText = "Try Again";
+            btn.innerText = "Submit for Moderation";
+            btn.disabled = false;
         } else {
-            alert("Spot submitted! It will appear on the map once moderated.");
+            alert("Success! Your spot has been sent to the moderator (you!).");
             window.location.href = "index.html";
         }
     };
