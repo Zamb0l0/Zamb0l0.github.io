@@ -1,21 +1,19 @@
-{"type":"FeatureCollection", "features": [
-{"type":"Feature","geometry":{"type":"Point","coordinates":[2037259.9881548581,5708234.096535898]},"properties":{"NAME":"Gisborne","ID":3008,"PLACETYPE":"CITY","NEARTO":"Gisborne"}},
-{"type":"Feature","geometry":{"type":"Point","coordinates":[1884284.5772724352,5773369.068500754]},"properties":{"NAME":"Rotorua","ID":9728,"PLACETYPE":"CITY","NEARTO":"Rotorua"}},
-{"type":"Feature","geometry":{"type":"Point","coordinates":[1877130.6146946948,5822455.507098158]},"properties":{"NAME":"Tauranga","ID":11852,"PLACETYPE":"CITY","NEARTO":"Tauranga"}},
-{"type":"Feature","geometry":{"type":"Point","coordinates":[1748099.3133163992,5428492.9070458785]},"properties":{"NAME":"Wellington","ID":13494,"PLACETYPE":"CITY","NEARTO":"Wellington"}},
-{"type":"Feature","geometry":{"type":"Point","coordinates":[1692912.7552426243,5676226.121666601]},"properties":{"NAME":"New Plymouth","ID":7126,"PLACETYPE":"CITY","NEARTO":"New Plymouth"}},
-{"type":"Feature","geometry":{"type":"Point","coordinates":[1623817.172977034,5430987.4292930905]},"properties":{"NAME":"Nelson","ID":7053,"PLACETYPE":"CITY","NEARTO":"Nelson"}},
-{"type":"Feature","geometry":{"type":"Point","coordinates":[1821761.2792362538,5529382.441273006]},"properties":{"NAME":"Palmerston North","ID":8143,"PLACETYPE":"CITY","NEARTO":"Palmerston North"}},
-{"type":"Feature","geometry":{"type":"Point","coordinates":[1761341.8753888311,5436726.211180637]},"properties":{"NAME":"Lower Hutt","ID":5524,"PLACETYPE":"CITY","NEARTO":"Wellington"}},
-{"type":"Feature","geometry":{"type":"Point","coordinates":[1772902.425404223,5445723.899727158]},"properties":{"NAME":"Upper Hutt","ID":12746,"PLACETYPE":"CITY","NEARTO":"Wellington"}},
-{"type":"Feature","geometry":{"type":"Point","coordinates":[1929900.6868682918,5604907.318402718]},"properties":{"NAME":"Hastings","ID":3566,"PLACETYPE":"CITY","NEARTO":"Napier/Hastings"}},
-{"type":"Feature","geometry":{"type":"Point","coordinates":[1754426.3331530665,5444408.657440921]},"properties":{"NAME":"Porirua","ID":8770,"PLACETYPE":"CITY","NEARTO":"Wellington"}},
-{"type":"Feature","geometry":{"type":"Point","coordinates":[1775329.977227446,5577639.128763847]},"properties":{"NAME":"Whanganui","ID":13396,"PLACETYPE":"CITY","NEARTO":"Whanganui"}},
-{"type":"Feature","geometry":{"type":"Point","coordinates":[1757551.400945292,5916554.213578631]},"properties":{"NAME":"Auckland","ID":493,"PLACETYPE":"CITY","NEARTO":"Auckland"}},
-{"type":"Feature","geometry":{"type":"Point","coordinates":[1570638.6099228552,5180154.175676339]},"properties":{"NAME":"Christchurch","ID":1717,"PLACETYPE":"CITY","NEARTO":"Christchurch"}},
-{"type":"Feature","geometry":{"type":"Point","coordinates":[1406307.912827102,4916816.067386587]},"properties":{"NAME":"Dunedin","ID":2381,"PLACETYPE":"CITY","NEARTO":"Dunedin"}},
-{"type":"Feature","geometry":{"type":"Point","coordinates":[1936844.0835660887,5621371.597146402]},"properties":{"NAME":"Napier","ID":6982,"PLACETYPE":"CITY","NEARTO":"Napier/Hastings"}},
-{"type":"Feature","geometry":{"type":"Point","coordinates":[1242837.85923806,4849635.0918798335]},"properties":{"NAME":"Invercargill","ID":4243,"PLACETYPE":"CITY","NEARTO":"Invercargill"}},
-{"type":"Feature","geometry":{"type":"Point","coordinates":[1800570.1685380258,5815783.105246255]},"properties":{"NAME":"Hamilton","ID":3487,"PLACETYPE":"CITY","NEARTO":"Hamilton"}},
-{"type":"Feature","geometry":{"type":"Point","coordinates":[1719433.5756474459,6045730.480123213]},"properties":{"NAME":"Whangārei","ID":13730,"PLACETYPE":"CITY","NEARTO":"Whangārei"}}
-]}
+{
+  "type": "FeatureCollection",
+  "features": [
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [178.02, -38.66] }, "properties": { "NAME": "Gisborne" } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [176.24, -38.14] }, "properties": { "NAME": "Rotorua" } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [176.14, -37.70] }, "properties": { "NAME": "Tauranga" } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [174.76, -41.28] }, "properties": { "NAME": "Wellington" } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [174.07, -39.05] }, "properties": { "NAME": "New Plymouth" } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [173.28, -41.27] }, "properties": { "NAME": "Nelson" } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [175.61, -40.35] }, "properties": { "NAME": "Palmerston North" } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [174.76, -36.88] }, "properties": { "NAME": "Auckland" } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [172.63, -43.53] }, "properties": { "NAME": "Christchurch" } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [170.50, -45.87] }, "properties": { "NAME": "Dunedin" } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [176.91, -39.49] }, "properties": { "NAME": "Napier" } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [168.35, -46.41] }, "properties": { "NAME": "Invercargill" } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [175.27, -37.78] }, "properties": { "NAME": "Hamilton" } },
+    { "type": "Feature", "geometry": { "type": "Point", "coordinates": [174.32, -35.72] }, "properties": { "NAME": "Whangārei" } }
+  ]
+}
