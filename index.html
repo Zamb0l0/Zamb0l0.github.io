@@ -7,7 +7,7 @@
     
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; font-family: sans-serif; overflow: hidden; }
+        body, html { margin: 0; padding: 0; height: 100%; font-family: sans-serif; overflow: hidden; background: #000; }
         
         #map { height: 100vh; width: 100vw; z-index: 1; }
 
@@ -17,18 +17,20 @@
             z-index: 1000; background: rgba(0,0,0,0.8); color: white;
             padding: 10px 30px; border-radius: 50px; letter-spacing: 2px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.3); border: 2px solid #00f2ff;
+            pointer-events: none; /* Allows you to click the map through the title */
         }
+        #title-card h1 { margin: 0; font-size: 24px; }
 
         /* Secondary Stage (Side Panel) */
         #info-panel {
             position: fixed; top: 0; right: -400px; width: 350px; height: 100%;
             background: white; z-index: 2000; transition: 0.4s;
             box-shadow: -5px 0 15px rgba(0,0,0,0.2); padding: 20px;
-            display: flex; flex-direction: column;
+            display: flex; flex-direction: column; overflow-y: auto;
         }
         #info-panel.active { right: 0; }
-        .close-btn { cursor: pointer; float: right; font-size: 24px; }
-        #spot-img { width: 100%; border-radius: 8px; margin-top: 15px; }
+        .close-btn { cursor: pointer; float: right; font-size: 30px; color: #333; line-height: 20px; }
+        #spot-img { width: 100%; border-radius: 8px; margin-top: 15px; min-height: 200px; object-fit: cover; background: #eee; }
 
         /* Custom Markers */
         .pin { width: 15px; height: 15px; border-radius: 50%; border: 2px solid white; }
@@ -41,11 +43,11 @@
     <div id="title-card"><h1>SKIM AOTEAROA</h1></div>
 
     <div id="info-panel">
-        <span class="close-btn" onclick="closePanel()">&times;</span>
-        <h2 id="spot-name">Spot Name</h2>
-        <p id="spot-type" style="text-transform: uppercase; font-weight: bold; font-size: 12px;"></p>
-        <img id="spot-img" src="" alt="Spot Satellite">
-        <p id="spot-desc">Description goes here...</p>
+        <div><span class="close-btn" onclick="closePanel()">&times;</span></div>
+        <h2 id="spot-name" style="margin-top:10px;">Spot Name</h2>
+        <p id="spot-type" style="text-transform: uppercase; font-weight: bold; font-size: 12px; margin: 0;"></p>
+        <img id="spot-img" src="" alt="Spot Photo">
+        <p id="spot-desc" style="line-height: 1.6; color: #444;"></p>
     </div>
 
     <div id="map"></div>
@@ -57,62 +59,53 @@
         // --- 1. SETUP MAP ---
         const map = L.map('map', { zoomControl: false }).setView([-40.9, 174.88], 6);
 
-        // Satellite Basemap
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
             attribution: 'Tiles &copy; Esri'
         }).addTo(map);
 
         // --- 2. SUPABASE CONFIG ---
-        // Replace these with your actual keys from Supabase Settings
-        const SUPABASE_URL = 'https://igntxtfvlcewvqazkwyf.supabase.co';
-        const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlnbnR4dGZ2bGNld3ZxYXprd3lmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxOTM0ODMsImV4cCI6MjA4NTc2OTQ4M30.mxlSU_vXTzcgJO-WtB-qp9m9lKlC_PuYq2c__9m1UR8';
-        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-
-       // --- 2. SUPABASE CONFIG ---
         const SUPABASE_URL = 'https://igntxtfvlcewvqazkwyf.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlnbnR4dGZ2bGNld3ZxYXprd3lmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxOTM0ODMsImV4cCI6MjA4NTc2OTQ4M30.mxlSU_vXTzcgJO-WtB-qp9m9lKlC_PuYq2c__9m1UR8';
         
-        // Use a different name here, like 'sbClient'
-        const sbClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        // I changed the name from 'supabase' to 'sb' to fix the error
+        const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         // --- 3. FETCH & DISPLAY SPOTS ---
         async function loadSpots() {
-            // Use the new name 'sbClient' here too
-            const { data, error } = await sbClient
+            const { data, error } = await sb
                 .from('spots')
                 .select('*')
                 .eq('is_approved', true);
 
             if (error) {
-                console.error("Error fetching spots:", error);
+                console.error("Database error:", error.message);
                 return;
             }
 
-            if (data && data.length > 0) {
+            if (data) {
                 data.forEach(spot => {
                     const customIcon = L.divIcon({
                         className: `pin pin-${spot.type}`,
-                        iconSize: [15, 15]
+                        iconSize: [15, 15],
+                        iconAnchor: [7, 7]
                     });
 
                     const marker = L.marker([spot.lat, spot.lng], { icon: customIcon }).addTo(map);
                     
                     marker.on('click', () => {
                         showPanel(spot);
-                        map.flyTo([spot.lat, spot.lng], 14);
+                        map.flyTo([spot.lat, spot.lng], 14, { duration: 1.5 });
                     });
                 });
-            } else {
-                console.log("No approved spots found in database.");
             }
         }
 
         function showPanel(spot) {
             document.getElementById('spot-name').innerText = spot.name;
-            document.getElementById('spot-type').innerText = spot.type;
+            document.getElementById('spot-type').innerText = spot.type + " spot";
             document.getElementById('spot-type').style.color = spot.type === 'wave' ? '#0088ff' : '#00ff88';
-            document.getElementById('spot-desc').innerText = spot.description;
-            document.getElementById('spot-img').src = spot.image_url || 'https://via.placeholder.com/300';
+            document.getElementById('spot-desc').innerText = spot.description || "No description provided.";
+            document.getElementById('spot-img').src = spot.image_url || 'https://via.placeholder.com/300?text=No+Image+Available';
             document.getElementById('info-panel').classList.add('active');
         }
 
