@@ -24,12 +24,14 @@
             position: absolute; bottom: 30px; left: 20px; z-index: 1000;
             background: #00f2ff; color: black; border: none; padding: 12px 18px;
             border-radius: 8px; font-weight: bold; cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
         }
 
         #add-link {
             position: absolute; bottom: 30px; right: 20px; z-index: 1000;
             background: rgba(255,255,255,0.9); color: black; padding: 12px 18px;
             border-radius: 8px; text-decoration: none; font-weight: bold;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.4);
         }
 
         /* Side Panel */
@@ -48,7 +50,7 @@
         }
         #share-btn:hover { background: #e0e0e0; }
 
-        #spot-img { width: 100%; border-radius: 8px; margin-top: 15px; min-height: 200px; object-fit: cover; }
+        #spot-img { width: 100%; border-radius: 8px; margin-top: 15px; min-height: 200px; object-fit: cover; background: #eee; }
 
         .pin { width: 15px; height: 15px; border-radius: 50%; border: 2px solid white; }
         .pin-flatland { background: #00ff88; box-shadow: 0 0 10px #00ff88; }
@@ -64,10 +66,17 @@
 
     <div id="info-panel">
         <div><span class="close-btn" onclick="closePanel()">&times;</span></div>
+        
         <h2 id="spot-name" style="margin-top:10px;">Spot Name</h2>
+        
+        <div id="status-badge" style="display:inline-block; padding: 5px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-bottom: 10px; color: white;"></div>
+
         <p id="spot-type" style="text-transform: uppercase; font-weight: bold; font-size: 12px; margin: 0;"></p>
+        
         <button id="share-btn" onclick="copyShareLink()">🔗 COPY SHARE LINK</button>
+        
         <img id="spot-img" src="" alt="Spot Photo">
+        
         <p id="spot-desc" style="line-height: 1.6; color: #444;"></p>
     </div>
 
@@ -77,17 +86,20 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <script>
+        // --- 1. SETUP MAP ---
         const map = L.map('map', { zoomControl: false }).setView([-40.9, 174.88], 6);
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
             attribution: 'Tiles &copy; Esri', maxZoom: 19
         }).addTo(map);
 
+        // --- 2. SUPABASE CONFIG ---
         const SUPABASE_URL = 'https://igntxtfvlcewvqazkwyf.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlnbnR4dGZ2bGNld3ZxYXprd3lmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxOTM0ODMsImV4cCI6MjA4NTc2OTQ4M30.mxlSU_vXTzcgJO-WtB-qp9m9lKlC_PuYq2c__9m1UR8';
         const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
         let currentSpotId = null;
 
+        // --- 3. LOCATION & MARKERS ---
         function locateUser() { map.locate({setView: true, maxZoom: 15}); }
         map.on('locationfound', (e) => { 
             L.marker(e.latlng, { icon: L.divIcon({ className: 'user-location-pulse' }) }).addTo(map);
@@ -114,17 +126,40 @@
             }
         }
 
+        // --- 4. PANEL LOGIC ---
         function openSpot(spot) {
             currentSpotId = spot.id;
+
+            // 1. Text Content
             document.getElementById('spot-name').innerText = spot.name;
             document.getElementById('spot-type').innerText = spot.type + " spot";
             document.getElementById('spot-type').style.color = spot.type === 'wave' ? '#0088ff' : '#00ff88';
             document.getElementById('spot-desc').innerText = spot.description || "No description.";
+            
+            // 2. Image
             document.getElementById('spot-img').src = spot.image_url || 'https://via.placeholder.com/300';
+            
+            // 3. Status Badge Logic
+            const badge = document.getElementById('status-badge');
+            const status = spot.current_status || 'unknown';
+            
+            // Format text (e.g. "blown_out" -> "BLOWN OUT")
+            badge.innerText = "CONDITIONS: " + status.replace('_', ' ').toUpperCase();
+            
+            const colors = {
+                'firing': '#ff4500', // Orange-Red
+                'good': '#00ff88',   // Bright Green
+                'flat': '#888',      // Grey
+                'blown_out': '#555', // Dark Grey
+                'unknown': '#333'    // Black
+            };
+            badge.style.background = colors[status] || '#333';
+
+            // 4. Open Panel & Move Map
             document.getElementById('info-panel').classList.add('active');
             map.flyTo([spot.lat, spot.lng], 16, { duration: 2 });
             
-            // Update URL without reloading page
+            // 5. Update URL
             window.history.pushState({}, '', `?spot=${spot.id}`);
         }
 
