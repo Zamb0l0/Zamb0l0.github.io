@@ -97,21 +97,54 @@
         function locateUser() { map.locate({setView: true, maxZoom: 15}); }
         map.on('locationfound', (e) => { L.marker(e.latlng, { icon: L.divIcon({ className: 'user-location-pulse' }) }).addTo(map); });
 
-        async function loadSpots() {
-            const { data, error } = await sb.from('spots').select('*').eq('is_approved', true);
-            if (data) {
-                data.forEach(spot => {
-                    const marker = L.marker([spot.lat, spot.lng], { 
-                        icon: L.divIcon({ className: `pin pin-${spot.type}`, iconSize: [15, 15], iconAnchor: [7, 7] }) 
-                    }).addTo(map);
-                    marker.on('click', () => openSpot(spot));
-                });
+       // --- 3. CUSTOM ICONS ---
+// This is where you will swap in your own PNGs later!
+const waveIcon = L.icon({
+    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+    iconSize: [25, 41],      // Size of the icon [width, height]
+    iconAnchor: [12, 41],    // Point of the icon which will correspond to marker's location
+    popupAnchor: [1, -34],   // Point from which the popup should open relative to the iconAnchor
+    shadowSize: [41, 41]     // Size of the shadow
+});
 
-                const urlParams = new URLSearchParams(window.location.search);
-                const sharedId = urlParams.get('spot');
-                if (sharedId) { const sharedSpot = data.find(s => s.id == sharedId); if (sharedSpot) openSpot(sharedSpot); }
+const flatIcon = L.icon({
+    iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png',
+    shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png',
+    iconSize: [25, 41],
+    iconAnchor: [12, 41],
+    popupAnchor: [1, -34],
+    shadowSize: [41, 41]
+});
+
+// --- 4. FETCH & DISPLAY SPOTS ---
+async function loadSpots() {
+    const { data, error } = await sb.from('spots').select('*').eq('is_approved', true);
+    if (data) {
+        data.forEach(spot => {
+            
+            // Choose the icon based on the spot type
+            let chosenIcon;
+            if (spot.type === 'wave') {
+                chosenIcon = waveIcon;
+            } else {
+                chosenIcon = flatIcon;
             }
+
+            const marker = L.marker([spot.lat, spot.lng], { icon: chosenIcon }).addTo(map);
+            
+            marker.on('click', () => openSpot(spot));
+        });
+
+        // Check URL for shared spot
+        const urlParams = new URLSearchParams(window.location.search);
+        const sharedId = urlParams.get('spot');
+        if (sharedId) {
+            const sharedSpot = data.find(s => s.id == sharedId);
+            if (sharedSpot) openSpot(sharedSpot);
         }
+    }
+}
 
         function openSpot(spot) {
             currentSpotId = spot.id;
