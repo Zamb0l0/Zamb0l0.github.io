@@ -121,11 +121,10 @@
 
     <div id="map"></div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <script>
-        <script>
         const cursor = document.getElementById('cursor');
         document.addEventListener('mousemove', e => {
             cursor.style.left = e.clientX + 'px';
@@ -144,7 +143,7 @@
         let boundaryLayer = null;
         let cityLayer = null;
         let activeOverlay = null;
-        let allMarkers = []; // Store markers for searching
+        let allMarkers = [];
 
         async function loadGeoData() {
             try {
@@ -176,11 +175,9 @@
             if (activeOverlay) map.removeLayer(activeOverlay);
             if (regionName === "nz") { map.flyTo([-40.9, 174.88], 6); return; }
 
-            let found = false;
             boundaryLayer.eachLayer(layer => {
                 const featureProps = layer.feature.properties;
                 if (featureProps && featureProps.reg_name) {
-                    // Normalize names to handle accents (like Manawatū) and casing
                     const geoName = featureProps.reg_name.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
                     const selectedName = regionName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
 
@@ -191,14 +188,13 @@
                                 color: '#00f2ff', 
                                 fillColor: '#00f2ff', 
                                 fillOpacity: 0.3, 
-                                weight: 8, // Thicker line for better blur effect
+                                weight: 8, 
                                 stroke: true 
                             },
                             interactive: false
                         }).addTo(map);
                         
                         map.flyToBounds(layer.getBounds(), { padding: [50, 50], duration: 1.5 });
-                        found = true;
                     }
                 }
             });
@@ -215,21 +211,19 @@
                     if (marker._icon) marker._icon.classList.add(colorClass);
                     marker.on('click', () => openSpot(spot));
                     
-                    // Save for search
                     spot.marker = marker;
                     allMarkers.push(spot);
                 });
             }
         }
 
-        // --- SEARCH FUNCTION ---
         function searchSpots(query) {
             const q = query.toLowerCase();
             allMarkers.forEach(spot => {
                 if (spot.name.toLowerCase().includes(q)) {
                     spot.marker.setOpacity(1);
                 } else {
-                    spot.marker.setOpacity(0.1); // Dim non-matches
+                    spot.marker.setOpacity(0.1);
                 }
             });
         }
@@ -258,6 +252,8 @@
 
         loadGeoData().then(loadSpots);
     </script>
+</body>
+</html>
     </script>
 </body>
 </html>
