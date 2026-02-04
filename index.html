@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SKIM AOTEAROA</title>
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body, html { margin: 0; padding: 0; height: 100%; font-family: sans-serif; overflow: hidden; }
+        
+        #map { height: 100vh; width: 100vw; z-index: 1; }
+
+        /* Floating Title */
+        #title-card {
+            position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
+            z-index: 1000; background: rgba(0,0,0,0.8); color: white;
+            padding: 10px 30px; border-radius: 50px; letter-spacing: 2px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3); border: 2px solid #00f2ff;
+        }
+
+        /* Secondary Stage (Side Panel) */
+        #info-panel {
+            position: fixed; top: 0; right: -400px; width: 350px; height: 100%;
+            background: white; z-index: 2000; transition: 0.4s;
+            box-shadow: -5px 0 15px rgba(0,0,0,0.2); padding: 20px;
+            display: flex; flex-direction: column;
+        }
+        #info-panel.active { right: 0; }
+        .close-btn { cursor: pointer; float: right; font-size: 24px; }
+        #spot-img { width: 100%; border-radius: 8px; margin-top: 15px; }
+
+        /* Custom Markers */
+        .pin { width: 15px; height: 15px; border-radius: 50%; border: 2px solid white; }
+        .pin-flatland { background: #00ff88; box-shadow: 0 0 10px #00ff88; }
+        .pin-wave { background: #0088ff; box-shadow: 0 0 10px #0088ff; }
+    </style>
+</head>
+<body>
+
+    <div id="title-card"><h1>SKIM AOTEAROA</h1></div>
+
+    <div id="info-panel">
+        <span class="close-btn" onclick="closePanel()">&times;</span>
+        <h2 id="spot-name">Spot Name</h2>
+        <p id="spot-type" style="text-transform: uppercase; font-weight: bold; font-size: 12px;"></p>
+        <img id="spot-img" src="" alt="Spot Satellite">
+        <p id="spot-desc">Description goes here...</p>
+    </div>
+
+    <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+    <script>
+        // --- 1. SETUP MAP ---
+        const map = L.map('map', { zoomControl: false }).setView([-40.9, 174.88], 6);
+
+        // Satellite Basemap
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri'
+        }).addTo(map);
+
+        // --- 2. SUPABASE CONFIG ---
+        // Replace these with your actual keys from Supabase Settings
+        const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+        const SUPABASE_KEY = 'YOUR_SUPABASE_ANON_KEY';
+        const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        // --- 3. FETCH & DISPLAY SPOTS ---
+        async function loadSpots() {
+            const { data, error } = await supabase
+                .from('spots')
+                .select('*')
+                .eq('is_approved', true); // ONLY show moderated spots
+
+            if (data) {
+                data.forEach(spot => {
+                    const customIcon = L.divIcon({
+                        className: `pin pin-${spot.type}`,
+                        iconSize: [15, 15]
+                    });
+
+                    const marker = L.marker([spot.lat, spot.lng], { icon: customIcon }).addTo(map);
+                    
+                    marker.on('click', () => {
+                        showPanel(spot);
+                        map.flyTo([spot.lat, spot.lng], 14);
+                    });
+                });
+            }
+        }
+
+        function showPanel(spot) {
+            document.getElementById('spot-name').innerText = spot.name;
+            document.getElementById('spot-type').innerText = spot.type;
+            document.getElementById('spot-type').style.color = spot.type === 'wave' ? '#0088ff' : '#00ff88';
+            document.getElementById('spot-desc').innerText = spot.description;
+            document.getElementById('spot-img').src = spot.image_url || 'https://via.placeholder.com/300';
+            document.getElementById('info-panel').classList.add('active');
+        }
+
+        function closePanel() {
+            document.getElementById('info-panel').classList.remove('active');
+        }
+
+        loadSpots();
+    </script>
+</body>
+</html>
