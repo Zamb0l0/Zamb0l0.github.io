@@ -51,17 +51,12 @@
             padding: 12px; border-radius: 8px; font-weight: bold; outline: none; width: 220px;
         }
 
-        /* --- FEATHERED MASK CSS --- */
-        .map-mask {
-            fill: white;
-            fill-opacity: 0.4;
-            filter: blur(10px); /* The feathering */
-            pointer-events: none;
-        }
+        .map-mask { fill: white; fill-opacity: 0.4; filter: blur(10px); pointer-events: none; }
 
         #locate-btn { position: absolute; bottom: 30px; left: 20px; z-index: 1000; background: #00f2ff; color: black; border: none; padding: 12px 18px; border-radius: 8px; font-weight: bold; }
         #add-link { position: absolute; bottom: 30px; right: 20px; z-index: 1000; background: rgba(255,255,255,0.9); color: black; padding: 12px 18px; border-radius: 8px; text-decoration: none; font-weight: bold; }
 
+        /* --- INFO PANEL & TRAFFIC LIGHTS --- */
         #info-panel {
             position: fixed; top: 0; right: -400px; width: 350px; height: 100%;
             background: white; z-index: 2000; transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
@@ -70,7 +65,16 @@
         }
         #info-panel.active { right: 0; }
         .close-btn { cursor: pointer; float: right; font-size: 30px; }
-        .tide-row { display: flex; justify-content: space-between; margin-top: 5px; border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom:2px; }
+
+        .tide-rating-container { display: flex; justify-content: space-between; margin-top: 15px; gap: 8px; }
+        .tide-light { 
+            flex: 1; padding: 8px 4px; border-radius: 6px; text-align: center; 
+            font-size: 10px; font-weight: bold; color: white; text-transform: uppercase;
+        }
+        .light-1 { background: #ff4444; box-shadow: 0 0 8px rgba(255,68,68,0.3); } /* Red */
+        .light-2 { background: #ffbb33; box-shadow: 0 0 8px rgba(255,187,51,0.3); } /* Orange */
+        .light-3 { background: #00c851; box-shadow: 0 0 8px rgba(0,200,81,0.3); } /* Green */
+        .tide-label { color: #888; font-size: 9px; margin-bottom: 4px; display: block; text-align: center; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -99,13 +103,22 @@
     <div id="info-panel">
         <div><span class="close-btn" onclick="closePanel()">&times;</span></div>
         <h2 id="spot-name" style="margin-top:10px;">Spot Name</h2>
-        <div id="status-badge" style="display:inline-block; padding: 5px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-bottom: 10px; color: white;"></div>
-        <p id="spot-type" style="text-transform: uppercase; font-weight: bold; font-size: 12px; margin: 0;"></p>
-        <p id="spot-desc" style="line-height: 1.6; color: #444; margin-bottom: 0;"></p>
-        <div id="tide-box" style="display:none; background: #e6f7ff; padding: 10px; border-radius: 4px; margin-top: 15px;">
-            <div style="font-weight:bold; margin-bottom:5px;">🌊 TIDE FORECAST</div>
-            <div id="tide-content">Loading...</div>
+        
+        <p style="font-size: 11px; font-weight: bold; margin: 15px 0 5px 0; color: #555;">SKIMMABILITY BY TIDE:</p>
+        <div class="tide-rating-container">
+            <div><span class="tide-label">LOW</span><div id="light-low" class="tide-light">-</div></div>
+            <div><span class="tide-label">MID</span><div id="light-mid" class="tide-light">-</div></div>
+            <div><span class="tide-label">HIGH</span><div id="light-high" class="tide-light">-</div></div>
         </div>
+
+        <p id="spot-type" style="text-transform: uppercase; font-weight: bold; font-size: 11px; margin: 15px 0 0 0; color: #0088ff;"></p>
+        <p id="spot-desc" style="line-height: 1.5; color: #444; font-size: 14px; margin-top: 10px;"></p>
+        
+        <div id="tide-box" style="display:none; background: #f0faff; padding: 12px; border-radius: 8px; margin-top: 15px; border-left: 4px solid #00f2ff;">
+            <div style="font-weight:bold; font-size: 12px; margin-bottom:5px;">🌊 TIDE FORECAST (TODAY)</div>
+            <div id="tide-content" style="font-size: 13px;">Loading...</div>
+        </div>
+        
         <img id="spot-img" style="width:100%; border-radius: 8px; margin-top: 15px;" src="">
     </div>
 
@@ -137,15 +150,12 @@
             });
         })();
 
-        /* --- 2. Map & Region Masking --- */
+        /* --- 2. Map & Regions --- */
         const map = L.map('map', { zoomControl: false }).setView([-40.9, 174.88], 6);
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri' }).addTo(map);
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
 
-        let activeMask = null;
-        let activeOutline = null;
-        let allSpots = []; // Store spots for searching
+        let activeMask = null, activeOutline = null, allSpots = [];
 
-        // Detailed Coastal Outlines (wrapping snug into water)
         const regions = {
             "northland": [[-34.3, 172.4], [-34.2, 173.2], [-35.0, 174.4], [-36.2, 174.9], [-36.5, 174.2], [-35.8, 173.0], [-34.3, 172.4]],
             "auckland": [[-36.4, 174.1], [-36.0, 175.0], [-37.1, 175.3], [-37.4, 174.5], [-36.4, 174.1]],
@@ -160,31 +170,14 @@
         function handleRegionChange(val) {
             if (activeMask) map.removeLayer(activeMask);
             if (activeOutline) map.removeLayer(activeOutline);
-
-            if (val === "nz") {
-                map.flyTo([-40.9, 174.88], 6);
-                return;
-            }
-
+            if (val === "nz") { map.flyTo([-40.9, 174.88], 6); return; }
             const coords = regions[val];
-            const world = [[-90, -180], [-90, 180], [90, 180], [90, -180]];
-
-            activeMask = L.polygon([world, coords], {
-                className: 'map-mask',
-                stroke: false
-            }).addTo(map);
-
-            activeOutline = L.polygon(coords, {
-                color: 'white',
-                weight: 2,
-                fillOpacity: 0,
-                dashArray: '5, 10'
-            }).addTo(map);
-
+            activeMask = L.polygon([[[-90, -180], [-90, 180], [90, 180], [90, -180]], coords], { className: 'map-mask', stroke: false }).addTo(map);
+            activeOutline = L.polygon(coords, { color: 'white', weight: 2, fillOpacity: 0, dashArray: '5, 10' }).addTo(map);
             map.flyToBounds(L.polygon(coords).getBounds(), { padding: [50, 50], duration: 1.5 });
         }
 
-        /* --- 3. Supabase & Searching --- */
+        /* --- 3. Supabase & UI Interaction --- */
         const SUPABASE_URL = 'https://igntxtfvlcewvqazkwyf.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlnbnR4dGZ2bGNld3ZxYXprd3lmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxOTM0ODMsImV4cCI6MjA4NTc2OTQ4M30.mxlSU_vXTzcgJO-WtB-qp9m9lKlC_PuYq2c__9m1UR8';
         const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -194,49 +187,58 @@
             if (data) {
                 allSpots = data;
                 data.forEach(spot => {
-                    const iconUrl = spot.type === 'wave' ? 'blue' : 'green';
+                    const iconColor = spot.type === 'wave' ? 'blue' : 'green';
                     const marker = L.marker([spot.lat, spot.lng], {
                         icon: L.icon({ 
-                            iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${iconUrl}.png`,
+                            iconUrl: `https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-${iconColor}.png`,
                             iconSize: [25, 41], iconAnchor: [12, 41] 
                         })
                     }).addTo(map);
-
-                    marker.on('mouseover', () => {
-                        document.getElementById('cursor').classList.add(spot.type === 'wave' ? 'hover-wave' : 'hover-flat');
-                    });
-                    marker.on('mouseout', () => {
-                        document.getElementById('cursor').classList.remove('hover-wave', 'hover-flat');
-                    });
+                    marker.on('mouseover', () => document.getElementById('cursor').classList.add(spot.type === 'wave' ? 'hover-wave' : 'hover-flat'));
+                    marker.on('mouseout', () => document.getElementById('cursor').classList.remove('hover-wave', 'hover-flat'));
                     marker.on('click', () => openSpot(spot));
                 });
             }
         }
 
-        function searchSpots(query) {
-            const match = allSpots.find(s => s.name.toLowerCase().includes(query.toLowerCase()));
-            if (match && query.length > 2) {
-                openSpot(match);
-            }
-        }
-
         function openSpot(spot) {
             document.getElementById('spot-name').innerText = spot.name;
-            document.getElementById('spot-desc').innerText = spot.description || "No description.";
+            document.getElementById('spot-type').innerText = spot.type === 'wave' ? '🌊 Wave Spot' : '🏖️ Flatland Spot';
+            document.getElementById('spot-desc').innerText = spot.description || "No description provided.";
             document.getElementById('spot-img').src = spot.image_url || '';
+
+            // Update the Traffic Lights (1=Red, 2=Orange, 3=Green)
+            updateLight('light-low', spot.rating_low);
+            updateLight('light-mid', spot.rating_mid);
+            updateLight('light-high', spot.rating_high);
+
             document.getElementById('info-panel').classList.add('active');
             map.flyTo([spot.lat, spot.lng], 15);
             getTides(spot.lat, spot.lng);
         }
 
+        function updateLight(id, rating) {
+            const el = document.getElementById(id);
+            el.className = 'tide-light'; // reset
+            if (!rating) { el.innerText = '??'; return; }
+            el.classList.add('light-' + rating);
+            el.innerText = rating === 3 ? 'GOOD' : (rating === 2 ? 'AVG' : 'NO GO');
+        }
+
         async function getTides(lat, lng) {
+            const tideBox = document.getElementById('tide-box');
             const tideContent = document.getElementById('tide-content');
-            document.getElementById('tide-box').style.display = 'block';
+            tideBox.style.display = 'block';
             try {
                 const res = await fetch(`https://marine-api.open-meteo.com/v1/marine?latitude=${lat}&longitude=${lng}&daily=tide_high,tide_low&timezone=Pacific%2FAuckland&forecast_days=1`);
                 const data = await res.json();
-                tideContent.innerHTML = `High: ${data.daily.tide_high[0]} | Low: ${data.daily.tide_low[0]}`;
+                tideContent.innerHTML = `<b>High:</b> ${data.daily.tide_high[0]}<br><b>Low:</b> ${data.daily.tide_low[0]}`;
             } catch { tideContent.innerHTML = "Tide data unavailable."; }
+        }
+
+        function searchSpots(query) {
+            const match = allSpots.find(s => s.name.toLowerCase().includes(query.toLowerCase()));
+            if (match && query.length > 2) openSpot(match);
         }
 
         function closePanel() { document.getElementById('info-panel').classList.remove('active'); }
