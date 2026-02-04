@@ -8,7 +8,6 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body, html { margin: 0; padding: 0; height: 100%; font-family: sans-serif; overflow: hidden; background: #000; }
-        
         #map { height: 100vh; width: 100vw; z-index: 1; }
 
         /* Floating Title */
@@ -21,23 +20,19 @@
         }
         #title-card h1 { margin: 0; font-size: 24px; }
 
-        /* Locate Button */
         #locate-btn {
             position: absolute; bottom: 30px; left: 20px; z-index: 1000;
             background: #00f2ff; color: black; border: none; padding: 12px 18px;
             border-radius: 8px; font-weight: bold; cursor: pointer;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.4); font-size: 14px;
         }
-        #locate-btn:hover { background: #fff; }
 
-        /* Add Spot Link */
         #add-link {
             position: absolute; bottom: 30px; right: 20px; z-index: 1000;
             background: rgba(255,255,255,0.9); color: black; padding: 12px 18px;
-            border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 14px;
+            border-radius: 8px; text-decoration: none; font-weight: bold;
         }
 
-        /* Secondary Stage (Side Panel) */
+        /* Side Panel */
         #info-panel {
             position: fixed; top: 0; right: -400px; width: 350px; height: 100%;
             background: white; z-index: 2000; transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
@@ -45,25 +40,25 @@
             display: flex; flex-direction: column; overflow-y: auto;
         }
         #info-panel.active { right: 0; }
-        .close-btn { cursor: pointer; float: right; font-size: 30px; color: #333; line-height: 20px; }
-        #spot-img { width: 100%; border-radius: 8px; margin-top: 15px; min-height: 200px; object-fit: cover; background: #eee; }
+        .close-btn { cursor: pointer; float: right; font-size: 30px; }
+        
+        #share-btn {
+            margin-top: 15px; padding: 10px; background: #f0f0f0; border: 1px solid #ddd;
+            border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 12px;
+        }
+        #share-btn:hover { background: #e0e0e0; }
 
-        /* Custom Markers */
+        #spot-img { width: 100%; border-radius: 8px; margin-top: 15px; min-height: 200px; object-fit: cover; }
+
         .pin { width: 15px; height: 15px; border-radius: 50%; border: 2px solid white; }
         .pin-flatland { background: #00ff88; box-shadow: 0 0 10px #00ff88; }
         .pin-wave { background: #0088ff; box-shadow: 0 0 10px #0088ff; }
-        
-        /* Pulse Animation for Current Location */
-        .user-location-pulse {
-            width: 12px; height: 12px; background: #fff; border: 3px solid #00f2ff;
-            border-radius: 50%; box-shadow: 0 0 15px #00f2ff;
-        }
+        .user-location-pulse { width: 12px; height: 12px; background: #fff; border: 3px solid #00f2ff; border-radius: 50%; box-shadow: 0 0 15px #00f2ff; }
     </style>
 </head>
 <body>
 
     <div id="title-card"><h1>SKIM AOTEAROA</h1></div>
-
     <button id="locate-btn" onclick="locateUser()">🎯 FIND MY BEACH</button>
     <a href="add.html" id="add-link">➕ ADD SPOT</a>
 
@@ -71,6 +66,7 @@
         <div><span class="close-btn" onclick="closePanel()">&times;</span></div>
         <h2 id="spot-name" style="margin-top:10px;">Spot Name</h2>
         <p id="spot-type" style="text-transform: uppercase; font-weight: bold; font-size: 12px; margin: 0;"></p>
+        <button id="share-btn" onclick="copyShareLink()">🔗 COPY SHARE LINK</button>
         <img id="spot-img" src="" alt="Spot Photo">
         <p id="spot-desc" style="line-height: 1.6; color: #444;"></p>
     </div>
@@ -81,72 +77,66 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <script>
-        // --- 1. SETUP MAP ---
-        const map = L.map('map', { zoomControl: false, worldCopyJump: true }).setView([-40.9, 174.88], 6);
-
-        // Best Quality Satellite Tiles
+        const map = L.map('map', { zoomControl: false }).setView([-40.9, 174.88], 6);
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-            attribution: 'Tiles &copy; Esri',
-            maxZoom: 19
+            attribution: 'Tiles &copy; Esri', maxZoom: 19
         }).addTo(map);
 
-        // --- 2. SUPABASE CONFIG ---
         const SUPABASE_URL = 'https://igntxtfvlcewvqazkwyf.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlnbnR4dGZ2bGNld3ZxYXprd3lmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxOTM0ODMsImV4cCI6MjA4NTc2OTQ4M30.mxlSU_vXTzcgJO-WtB-qp9m9lKlC_PuYq2c__9m1UR8';
         const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        // --- 3. LOCATION LOGIC ---
-        function locateUser() {
-            map.locate({setView: true, maxZoom: 15});
-        }
+        let currentSpotId = null;
 
-        map.on('locationfound', function(e) {
-            const userIcon = L.divIcon({ className: 'user-location-pulse' });
-            L.marker(e.latlng, { icon: userIcon }).addTo(map).bindPopup("You are here").openPopup();
+        function locateUser() { map.locate({setView: true, maxZoom: 15}); }
+        map.on('locationfound', (e) => { 
+            L.marker(e.latlng, { icon: L.divIcon({ className: 'user-location-pulse' }) }).addTo(map);
         });
 
-        map.on('locationerror', function() {
-            alert("Could not find your location. Please check GPS settings.");
-        });
-
-        // --- 4. FETCH & DISPLAY SPOTS ---
         async function loadSpots() {
-            const { data, error } = await sb
-                .from('spots')
-                .select('*')
-                .eq('is_approved', true);
-
-            if (error) { console.error("Database error:", error.message); return; }
-
+            const { data, error } = await sb.from('spots').select('*').eq('is_approved', true);
             if (data) {
                 data.forEach(spot => {
-                    const customIcon = L.divIcon({
-                        className: `pin pin-${spot.type}`,
-                        iconSize: [15, 15],
-                        iconAnchor: [7, 7]
-                    });
-
-                    const marker = L.marker([spot.lat, spot.lng], { icon: customIcon }).addTo(map);
+                    const marker = L.marker([spot.lat, spot.lng], { 
+                        icon: L.divIcon({ className: `pin pin-${spot.type}`, iconSize: [15, 15], iconAnchor: [7, 7] }) 
+                    }).addTo(map);
                     
-                    marker.on('click', () => {
-                        showPanel(spot);
-                        map.flyTo([spot.lat, spot.lng], 16, { duration: 2 }); // Deep zoom for 3D feel
-                    });
+                    marker.on('click', () => openSpot(spot));
                 });
+
+                // Check URL for shared spot
+                const urlParams = new URLSearchParams(window.location.search);
+                const sharedId = urlParams.get('spot');
+                if (sharedId) {
+                    const sharedSpot = data.find(s => s.id == sharedId);
+                    if (sharedSpot) openSpot(sharedSpot);
+                }
             }
         }
 
-        function showPanel(spot) {
+        function openSpot(spot) {
+            currentSpotId = spot.id;
             document.getElementById('spot-name').innerText = spot.name;
             document.getElementById('spot-type').innerText = spot.type + " spot";
             document.getElementById('spot-type').style.color = spot.type === 'wave' ? '#0088ff' : '#00ff88';
-            document.getElementById('spot-desc').innerText = spot.description || "No description provided.";
-            document.getElementById('spot-img').src = spot.image_url || 'https://via.placeholder.com/300?text=No+Image+Available';
+            document.getElementById('spot-desc').innerText = spot.description || "No description.";
+            document.getElementById('spot-img').src = spot.image_url || 'https://via.placeholder.com/300';
             document.getElementById('info-panel').classList.add('active');
+            map.flyTo([spot.lat, spot.lng], 16, { duration: 2 });
+            
+            // Update URL without reloading page
+            window.history.pushState({}, '', `?spot=${spot.id}`);
+        }
+
+        function copyShareLink() {
+            const shareUrl = window.location.href;
+            navigator.clipboard.writeText(shareUrl);
+            alert("Link copied to clipboard! Share it with other skimmers.");
         }
 
         function closePanel() {
             document.getElementById('info-panel').classList.remove('active');
+            window.history.pushState({}, '', window.location.pathname);
         }
 
         loadSpots();
