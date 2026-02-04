@@ -25,9 +25,16 @@
 
         /* --- REGIONAL TOPOGRAPHY OVERLAY --- */
         .region-overlay {
-            filter: blur(20px); /* The "bleed" effect */
-            pointer-events: none;
-            transition: all 0.5s ease-in-out;
+            filter: blur(25px);
+            pointer-events: none !important; /* Critical to allow clicking markers underneath */
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        /* --- CITY LABELS --- */
+        .city-label {
+            background: none; border: none; box-shadow: none;
+            color: rgba(255,255,255,0.7); font-size: 10px; font-weight: bold;
+            letter-spacing: 1px; text-transform: uppercase; text-shadow: 0 0 5px black;
         }
 
         /* --- UI ELEMENTS --- */
@@ -61,6 +68,7 @@
         #info-panel.active { right: 0; }
         .close-btn { cursor: pointer; float: right; font-size: 30px; line-height: 1; }
 
+        /* --- TIDE LIGHTS --- */
         .tide-rating-container { display: flex; justify-content: space-between; margin-top: 15px; gap: 8px; }
         .tide-light { 
             flex: 1; padding: 10px 4px; border-radius: 6px; text-align: center; 
@@ -86,7 +94,6 @@
             <option value="Taranaki">TARANAKI</option>
             <option value="Canterbury">CANTERBURY</option>
             <option value="Otago">OTAGO</option>
-            <option value="Southland">SOUTHLAND</option>
         </select>
         <input type="text" id="search-bar" placeholder="🔍 SEARCH BEACH..." oninput="searchSpots(this.value)">
     </div>
@@ -129,91 +136,90 @@
             if (e.target.closest('a, button, select, input, .leaflet-marker-icon, .leaflet-interactive')) cursor.classList.remove('hovering'); 
         });
 
-        // --- 2. Map Setup ---
+        // --- 2. Map & Layers Setup ---
         const map = L.map('map', { zoomControl: false }).setView([-40.9, 174.88], 6);
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
 
         let boundaryLayer = null;
         let cityLayer = null;
+        let activeOverlay = null;
 
-        // --- 3. Load Your Data Files ---
+        // Custom Icons for Wave vs Flat
+        const waveIcon = L.divIcon({
+            html: `<div style="font-size: 24px;">🌊</div>`,
+            className: 'custom-marker',
+            iconSize: [30, 30],
+            iconAnchor: [15, 15]
+        });
 
-        async function loadBoundaries() {
-            const response = await fetch('cdem-group-boundaries.json');
-            const data = await response.json();
+        const flatIcon = L.divIcon({
+            html: `<div style="font-size: 24px;">🛹</div>`, // Skateboard or similar for flat
+            className: 'custom-marker',
+            iconSize: [30, 30],
+            iconAnchor: [15, 15]
+        });
 
-            boundaryLayer = L.geoJSON(data, {
-                style: function(feature) {
-                    return {
-                        fillColor: '#00f2ff',
-                        fillOpacity: 0.05,
-                        color: '#00f2ff',
-                        weight: 1,
-                        className: 'region-overlay'
-                    };
-                }
+        // --- 3. Load GeoJSON Data ---
+        async function loadGeoData() {
+            // Load Boundaries
+            const bResp = await fetch('cdem-group-boundaries.json');
+            const bData = await bResp.json();
+            boundaryLayer = L.geoJSON(bData, {
+                style: { color: 'transparent', weight: 0, fillOpacity: 0 },
+                interactive: false // This prevents boundaries from blocking clicks on markers
             }).addTo(map);
-        }
 
-        async function loadCities() {
-            const response = await fetch('city.json');
-            const data = await response.json();
-
-            cityLayer = L.geoJSON(data, {
+            // Load Cities
+            const cResp = await fetch('city.json');
+            const cData = await cResp.json();
+            cityLayer = L.geoJSON(cData, {
                 pointToLayer: (feature, latlng) => {
-                    return L.circleMarker(latlng, {
-                        radius: 4,
-                        fillColor: "#fff",
-                        color: "#000",
-                        weight: 1,
-                        fillOpacity: 0.8
+                    return L.marker(latlng, {
+                        icon: L.divIcon({
+                            className: 'city-label',
+                            html: `<span>${feature.properties.NAME}</span>`,
+                            iconSize: [100, 20]
+                        }),
+                        interactive: false
                     });
-                },
-                onEachFeature: (feature, layer) => {
-                    if (feature.properties && feature.properties.NAME) {
-                        layer.bindTooltip(feature.properties.NAME, { 
-                            direction: 'top', 
-                            offset: [0, -5] 
-                        });
-                    }
                 }
             }).addTo(map);
         }
 
-        // --- 4. Interactive Region Logic ---
+        function handleRegionChange(regionName) {
+            if (activeOverlay) map.removeLayer(activeOverlay);
+            if (regionName === "nz") { map.flyTo([-40.9, 174.88], 6); return; }
 
-        function handleRegionChange(val) {
-            if (!boundaryLayer) return;
-
-            if (val === "nz") {
-                map.flyTo([-40.9, 174.88], 6);
-                boundaryLayer.setStyle({ fillOpacity: 0.05, weight: 1 });
-                return;
-            }
-
+            // Find the specific region feature in the GeoJSON
             boundaryLayer.eachLayer(layer => {
-                // Matches the dropdown value to the 'group_name' in your JSON
-                const name = layer.feature.properties.group_name;
-                
-                if (name === val) {
-                    layer.setStyle({ fillOpacity: 0.4, weight: 3 });
+                if (layer.feature.properties.group_name === regionName) {
+                    activeOverlay = L.geoJSON(layer.feature, {
+                        className: 'region-overlay',
+                        style: {
+                            color: '#00f2ff',
+                            fillColor: '#00f2ff',
+                            fillOpacity: 0.2,
+                            weight: 0
+                        },
+                        interactive: false
+                    }).addTo(map);
+                    
                     map.flyToBounds(layer.getBounds(), { padding: [50, 50], duration: 1.5 });
-                } else {
-                    layer.setStyle({ fillOpacity: 0.02, weight: 0.5 });
                 }
             });
         }
 
-        // --- 5. Supabase & Spots ---
+        // --- 4. Supabase Logic ---
         const sb = supabase.createClient('https://igntxtfvlcewvqazkwyf.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlnbnR4dGZ2bGNld3ZxYXprd3lmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxOTM0ODMsImV4cCI6MjA4NTc2OTQ4M30.mxlSU_vXTzcgJO-WtB-qp9m9lKlC_PuYq2c__9m1UR8');
 
         async function loadSpots() {
             const { data } = await sb.from('spots').select('*').eq('is_approved', true);
             if (data) {
                 data.forEach(spot => {
-                    const marker = L.circleMarker([spot.lat, spot.lng], {
-                        radius: 8, color: '#00f2ff', fillColor: '#00f2ff', fillOpacity: 0.8, weight: 2
-                    }).addTo(map);
+                    // Choose icon based on type (assumes you have a 'spot_type' column)
+                    const iconToUse = spot.spot_type === 'wave' ? waveIcon : flatIcon;
+
+                    const marker = L.marker([spot.lat, spot.lng], { icon: iconToUse }).addTo(map);
                     marker.on('click', () => openSpot(spot));
                 });
             }
@@ -243,10 +249,8 @@
         function closePanel() { document.getElementById('info-panel').classList.remove('active'); }
         function locateUser() { map.locate({setView: true, maxZoom: 15}); }
 
-        // Start everything
-        loadBoundaries();
-        loadCities();
-        loadSpots();
+        // Initialize everything
+        loadGeoData().then(loadSpots);
     </script>
 </body>
 </html>
