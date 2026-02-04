@@ -1,1 +1,88 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Add a Spot - SKIM AOTEAROA</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <style>
+        body { font-family: sans-serif; background: #121212; color: white; padding: 20px; }
+        .form-container { max-width: 500px; margin: 0 auto; background: #1e1e1e; padding: 20px; border-radius: 10px; }
+        #map-selector { height: 250px; border-radius: 8px; margin-bottom: 15px; cursor: crosshair; }
+        input, textarea, select { width: 100%; padding: 10px; margin: 10px 0; background: #333; border: 1px solid #444; color: white; border-radius: 5px; box-sizing: border-box; }
+        button { width: 100%; padding: 12px; background: #00f2ff; color: black; border: none; font-weight: bold; border-radius: 5px; cursor: pointer; }
+        .hint { font-size: 12px; color: #888; margin-bottom: 5px; }
+    </style>
+</head>
+<body>
 
+<div class="form-container">
+    <h2>Add New Skim Spot</h2>
+    <p class="hint">1. Click on the map to drop a pin</p>
+    <div id="map-selector"></div>
+
+    <form id="skim-form">
+        <input type="text" id="lat" name="lat" placeholder="Latitude" readonly required>
+        <input type="text" id="lng" name="lng" placeholder="Longitude" readonly required>
+        
+        <input type="text" id="name" placeholder="Spot Name (e.g. Muriwai Lefts)" required>
+        
+        <select id="type">
+            <option value="flatland">Flatland Spot</option>
+            <option value="wave">Wave / Shorebreak</option>
+        </select>
+
+        <textarea id="description" rows="4" placeholder="Describe the conditions, best tide, parking, etc."></textarea>
+        
+        <input type="url" id="image_url" placeholder="Photo Link (use an imgur link for now)">
+        
+        <button type="submit" id="submit-btn">Submit for Review</button>
+    </form>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+
+<script>
+    // --- 1. Map Logic ---
+    const map = L.map('map-selector').setView([-40.9, 174.88], 5);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+
+    let marker;
+    map.on('click', function(e) {
+        if (marker) { map.removeLayer(marker); }
+        marker = L.marker(e.latlng).addTo(map);
+        document.getElementById('lat').value = e.latlng.lat.toFixed(6);
+        document.getElementById('lng').value = e.latlng.lng.toFixed(6);
+    });
+
+    // --- 2. Supabase Logic ---
+    const SUPABASE_URL = 'YOUR_SUPABASE_URL';
+    const SUPABASE_KEY = 'YOUR_SUPABASE_ANON_KEY';
+    const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+    document.getElementById('skim-form').onsubmit = async (e) => {
+        e.preventDefault();
+        const btn = document.getElementById('submit-btn');
+        btn.innerText = "Sending...";
+
+        const { error } = await supabaseClient.from('spots').insert([{
+            name: document.getElementById('name').value,
+            type: document.getElementById('type').value,
+            lat: parseFloat(document.getElementById('lat').value),
+            lng: parseFloat(document.getElementById('lng').value),
+            description: document.getElementById('description').value,
+            image_url: document.getElementById('image_url').value,
+            is_approved: false // Starts as hidden for mod review
+        }]);
+
+        if (error) {
+            alert("Error: " + error.message);
+            btn.innerText = "Try Again";
+        } else {
+            alert("Spot submitted! It will appear on the map once moderated.");
+            window.location.href = "index.html";
+        }
+    };
+</script>
+</body>
+</html>
