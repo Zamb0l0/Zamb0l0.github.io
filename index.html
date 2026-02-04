@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body, html { margin: 0; padding: 0; height: 100%; font-family: sans-serif; overflow: hidden; background: #000; }
-        #map { height: 100vh; width: 100vw; z-index: 1; }
+        #map { height: 100vh; width: 100vw; z-index: 1; background: #000; }
 
         /* --- CUSTOM CURSOR CSS --- */
         @media (hover: hover) and (pointer: fine) {
@@ -28,13 +28,12 @@
             }
             #cursor.clicking { transform: translate(-50%, -50%) scale(0.7) !important; }
             #cursor.hovering { transform: translate(-50%, -50%) scale(5); opacity: 0.6; }
-            
-            /* Specific Hover Colors */
             #cursor.hover-wave { background-color: #0088ff !important; box-shadow: 0 0 15px #0088ff; }
             #cursor.hover-flat { background-color: #00ff88 !important; box-shadow: 0 0 15px #00ff88; }
         }
         @media (hover: none), (pointer: coarse) { #cursor { display: none; } }
 
+        /* --- UI ELEMENTS --- */
         #title-card {
             position: absolute; top: 20px; left: 50%; transform: translateX(-50%);
             z-index: 1000; background: rgba(0,0,0,0.8); color: white;
@@ -42,6 +41,14 @@
             box-shadow: 0 4px 15px rgba(0,0,0,0.3); border: 2px solid #00f2ff; pointer-events: none;
         }
         #title-card h1 { margin: 0; font-size: 24px; }
+
+        /* Region Selector Styling */
+        #region-select {
+            position: absolute; top: 20px; left: 20px; z-index: 1000;
+            background: rgba(0,0,0,0.8); color: white; border: 1px solid #00f2ff;
+            padding: 10px; border-radius: 8px; font-weight: bold; outline: none;
+        }
+
         #locate-btn { position: absolute; bottom: 30px; left: 20px; z-index: 1000; background: #00f2ff; color: black; border: none; padding: 12px 18px; border-radius: 8px; font-weight: bold; }
         #add-link { position: absolute; bottom: 30px; right: 20px; z-index: 1000; background: rgba(255,255,255,0.9); color: black; padding: 12px 18px; border-radius: 8px; text-decoration: none; font-weight: bold; }
 
@@ -52,19 +59,21 @@
             display: flex; flex-direction: column; overflow-y: auto;
         }
         #info-panel.active { right: 0; }
-        .close-btn { cursor: pointer; float: right; font-size: 30px; }
-        #share-btn { margin-top: 15px; padding: 10px; background: #f0f0f0; border: 1px solid #ddd; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 12px; }
-        #spot-img { width: 100%; border-radius: 8px; margin-top: 15px; min-height: 200px; object-fit: cover; background: #eee; }
-        .user-location-pulse { width: 12px; height: 12px; background: #fff; border: 3px solid #00f2ff; border-radius: 50%; box-shadow: 0 0 15px #00f2ff; }
-
+        .close-btn { cursor: pointer; float: right; font-size: 30px; color: black; }
         #tide-box { background: #e6f7ff; border-left: 4px solid #0088ff; padding: 10px; margin-top: 15px; border-radius: 4px; font-size: 13px; color: #004488; }
         .tide-row { display: flex; justify-content: space-between; margin-top: 5px; border-bottom: 1px solid rgba(0,0,0,0.05); padding-bottom:2px; }
-        .tide-label { font-weight: bold; }
+        #spot-img { width: 100%; border-radius: 8px; margin-top: 15px; min-height: 200px; object-fit: cover; background: #eee; }
     </style>
 </head>
 <body>
 
     <div id="cursor"></div>
+
+    <select id="region-select" onchange="handleRegionChange(this.value)">
+        <option value="nz">ALL NEW ZEALAND</option>
+        <option value="northland">NORTHLAND</option>
+        <option value="auckland">AUCKLAND</option>
+    </select>
 
     <div id="title-card"><h1>SKIM AOTEAROA</h1></div>
     <button id="locate-btn" onclick="locateUser()">🎯 FIND MY BEACH</button>
@@ -72,7 +81,7 @@
 
     <div id="info-panel">
         <div><span class="close-btn" onclick="closePanel()">&times;</span></div>
-        <h2 id="spot-name" style="margin-top:10px;">Spot Name</h2>
+        <h2 id="spot-name" style="margin-top:10px; color: black;">Spot Name</h2>
         <div id="status-badge" style="display:inline-block; padding: 5px 12px; border-radius: 4px; font-size: 11px; font-weight: bold; margin-bottom: 10px; color: white;"></div>
         <p id="spot-type" style="text-transform: uppercase; font-weight: bold; font-size: 12px; margin: 0;"></p>
         <p id="spot-desc" style="line-height: 1.6; color: #444; margin-bottom: 0;"></p>
@@ -80,7 +89,6 @@
             <div style="font-weight:bold; margin-bottom:5px;">🌊 TIDE FORECAST</div>
             <div id="tide-content">Loading...</div>
         </div>
-        <button id="share-btn" onclick="copyShareLink()">🔗 COPY SHARE LINK</button>
         <img id="spot-img" src="" alt="Spot Photo">
     </div>
 
@@ -90,48 +98,76 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <script>
-        /* --- 1. Custom Cursor Logic --- */
+        /* --- 1. Custom Cursor --- */
         (function () {
             const cursor = document.getElementById('cursor');
             if (!cursor || !window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
-
             let mouseX = 0, mouseY = 0, cursorX = 0, cursorY = 0;
-
-            document.addEventListener('mousemove', (e) => {
-                mouseX = e.clientX; mouseY = e.clientY;
-            }, { passive: true });
-
+            document.addEventListener('mousemove', (e) => { mouseX = e.clientX; mouseY = e.clientY; }, { passive: true });
             function animate() {
                 cursorX += (mouseX - cursorX) * 0.15;
                 cursorY += (mouseY - cursorY) * 0.15;
-                cursor.style.left = cursorX + 'px';
-                cursor.style.top = cursorY + 'px';
+                cursor.style.left = cursorX + 'px'; cursor.style.top = cursorY + 'px';
                 requestAnimationFrame(animate);
             }
             animate();
-
             document.addEventListener('mousedown', () => cursor.classList.add('clicking'));
             document.addEventListener('mouseup', () => cursor.classList.remove('clicking'));
-
-            const hoverTargets = 'a, button, .close-btn, h1, h2, p, .leaflet-marker-icon';
-            document.addEventListener('mouseover', (e) => {
-                if (e.target.closest(hoverTargets)) cursor.classList.add('hovering');
-            });
-            document.addEventListener('mouseout', (e) => {
-                if (e.target.closest(hoverTargets)) cursor.classList.remove('hovering');
-            });
+            const hoverTargets = 'a, button, select, .close-btn, .leaflet-marker-icon';
+            document.addEventListener('mouseover', (e) => { if (e.target.closest(hoverTargets)) cursor.classList.add('hovering'); });
+            document.addEventListener('mouseout', (e) => { if (e.target.closest(hoverTargets)) cursor.classList.remove('hovering'); });
         })();
 
-        /* --- 2. Map & Supabase --- */
+        /* --- 2. Map Setup --- */
         const map = L.map('map', { zoomControl: false }).setView([-40.9, 174.88], 6);
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Tiles &copy; Esri', maxZoom: 19 }).addTo(map);
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', { attribution: 'Esri', maxZoom: 19 }).addTo(map);
 
+        /* --- 3. Region Masking Logic --- */
+        let activeMask = null;
+
+        const regionCoords = {
+            "northland": [
+                [-34.3, 172.4], [-35.0, 174.1], [-36.1, 174.7], [-36.4, 174.3], [-35.8, 173.0], [-34.3, 172.4]
+            ],
+            "auckland": [
+                [-36.4, 174.2], [-36.0, 174.9], [-37.1, 175.2], [-37.3, 174.6], [-36.4, 174.2]
+            ]
+        };
+
+        function applyMask(holeCoords) {
+            if (activeMask) map.removeLayer(activeMask);
+            
+            // World boundary coordinates
+            const world = [[-90, -180], [-90, 180], [90, 180], [90, -180]];
+            
+            // Create polygon with hole: [OuterBoundary, InnerHole]
+            activeMask = L.polygon([world, holeCoords], {
+                color: 'transparent',
+                fillColor: 'white',
+                fillOpacity: 0.4,
+                pointerEvents: 'none'
+            }).addTo(map);
+        }
+
+        function handleRegionChange(val) {
+            if (val === "nz") {
+                if (activeMask) map.removeLayer(activeMask);
+                map.flyTo([-40.9, 174.88], 6);
+            } else if (regionCoords[val]) {
+                applyMask(regionCoords[val]);
+                // Center map on the region hole
+                const bounds = L.polygon(regionCoords[val]).getBounds();
+                map.flyToBounds(bounds, { padding: [50, 50], duration: 1.5 });
+            }
+        }
+
+        /* --- 4. Supabase & Spots --- */
         const SUPABASE_URL = 'https://igntxtfvlcewvqazkwyf.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlnbnR4dGZ2bGNld3ZxYXprd3lmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxOTM0ODMsImV4cCI6MjA4NTc2OTQ4M30.mxlSU_vXTzcgJO-WtB-qp9m9lKlC_PuYq2c__9m1UR8';
         const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-        const waveIcon = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png', shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41] });
-        const flatIcon = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png', shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/0.7.7/images/marker-shadow.png', iconSize: [25, 41], iconAnchor: [12, 41], popupAnchor: [1, -34], shadowSize: [41, 41] });
+        const waveIcon = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-blue.png', iconSize: [25, 41], iconAnchor: [12, 41] });
+        const flatIcon = L.icon({ iconUrl: 'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-2x-green.png', iconSize: [25, 41], iconAnchor: [12, 41] });
 
         async function loadSpots() {
             const { data } = await sb.from('spots').select('*').eq('is_approved', true);
@@ -139,18 +175,13 @@
                 data.forEach(spot => {
                     const icon = spot.type === 'wave' ? waveIcon : flatIcon;
                     const marker = L.marker([spot.lat, spot.lng], { icon: icon }).addTo(map);
-                    
-                    // Reactive Cursor on Pins
                     marker.on('mouseover', () => {
                         const c = document.getElementById('cursor');
-                        if (spot.type === 'wave') c.classList.add('hover-wave');
-                        else c.classList.add('hover-flat');
+                        c.classList.add(spot.type === 'wave' ? 'hover-wave' : 'hover-flat');
                     });
                     marker.on('mouseout', () => {
-                        const c = document.getElementById('cursor');
-                        c.classList.remove('hover-wave', 'hover-flat');
+                        const c = document.getElementById('cursor').classList.remove('hover-wave', 'hover-flat');
                     });
-
                     marker.on('click', () => openSpot(spot));
                 });
             }
@@ -162,13 +193,11 @@
             document.getElementById('spot-type').style.color = spot.type === 'wave' ? '#0088ff' : '#00ff88';
             document.getElementById('spot-desc').innerText = spot.description || "No description.";
             document.getElementById('spot-img').src = spot.image_url || 'https://via.placeholder.com/300';
-            
             const badge = document.getElementById('status-badge');
             const status = spot.current_status || 'unknown';
             badge.innerText = "CONDITIONS: " + status.replace('_', ' ').toUpperCase();
             const colors = { 'firing': '#ff4500', 'good': '#00ff88', 'flat': '#888', 'blown_out': '#555', 'unknown': '#333' };
             badge.style.background = colors[status] || '#333';
-
             document.getElementById('info-panel').classList.add('active');
             map.flyTo([spot.lat, spot.lng], 16, { duration: 2 });
             getTides(spot.lat, spot.lng);
