@@ -10,20 +10,14 @@
         body, html { margin: 0; padding: 0; height: 100%; font-family: sans-serif; overflow: hidden; background: #000; }
         #map { height: 100vh; width: 100vw; z-index: 1; background: #000; }
 
-        /* --- CUSTOM CURSOR CSS --- */
+        /* --- CUSTOM CURSOR --- */
         @media (hover: hover) and (pointer: fine) {
             * { cursor: none !important; }
             #cursor {
-                width: 0.75rem; height: 0.75rem;
-                background-color: #00f2ff;
-                border-radius: 50%;
-                position: fixed;
-                pointer-events: none;
-                z-index: 99999;
-                transform: translate(-50%, -50%);
-                mix-blend-mode: difference;
-                transition: transform 0.15s ease-out, opacity 0.3s;
-                will-change: transform, left, top;
+                width: 0.75rem; height: 0.75rem; background-color: #00f2ff;
+                border-radius: 50%; position: fixed; pointer-events: none; z-index: 99999;
+                transform: translate(-50%, -50%); mix-blend-mode: difference;
+                transition: transform 0.15s ease-out, opacity 0.3s; will-change: transform, left, top;
                 box-shadow: 0 0 10px #00f2ff;
             }
             #cursor.clicking { transform: translate(-50%, -50%) scale(0.7) !important; }
@@ -51,12 +45,17 @@
             padding: 12px; border-radius: 8px; font-weight: bold; outline: none; width: 220px;
         }
 
-        .map-mask { fill: white; fill-opacity: 0.4; filter: blur(10px); pointer-events: none; }
+        /* --- HEAVY FEATHERED MASK --- */
+        .map-mask {
+            fill: #0a0a0a; /* Darker mask for better contrast */
+            fill-opacity: 0.7;
+            filter: blur(25px); /* Increased feathering */
+            pointer-events: none;
+        }
 
         #locate-btn { position: absolute; bottom: 30px; left: 20px; z-index: 1000; background: #00f2ff; color: black; border: none; padding: 12px 18px; border-radius: 8px; font-weight: bold; }
         #add-link { position: absolute; bottom: 30px; right: 20px; z-index: 1000; background: rgba(255,255,255,0.9); color: black; padding: 12px 18px; border-radius: 8px; text-decoration: none; font-weight: bold; }
 
-        /* --- INFO PANEL & TRAFFIC LIGHTS --- */
         #info-panel {
             position: fixed; top: 0; right: -400px; width: 350px; height: 100%;
             background: white; z-index: 2000; transition: 0.4s cubic-bezier(0.4, 0, 0.2, 1);
@@ -71,9 +70,9 @@
             flex: 1; padding: 8px 4px; border-radius: 6px; text-align: center; 
             font-size: 10px; font-weight: bold; color: white; text-transform: uppercase;
         }
-        .light-1 { background: #ff4444; box-shadow: 0 0 8px rgba(255,68,68,0.3); } /* Red */
-        .light-2 { background: #ffbb33; box-shadow: 0 0 8px rgba(255,187,51,0.3); } /* Orange */
-        .light-3 { background: #00c851; box-shadow: 0 0 8px rgba(0,200,81,0.3); } /* Green */
+        .light-1 { background: #ff4444; }
+        .light-2 { background: #ffbb33; }
+        .light-3 { background: #00c851; }
         .tide-label { color: #888; font-size: 9px; margin-bottom: 4px; display: block; text-align: center; font-weight: bold; }
     </style>
 </head>
@@ -128,7 +127,7 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <script>
-        /* --- 1. Custom Cursor --- */
+        // --- 1. Cursor ---
         (function () {
             const cursor = document.getElementById('cursor');
             let mouseX = 0, mouseY = 0, cursorX = 0, cursorY = 0;
@@ -140,8 +139,6 @@
                 requestAnimationFrame(animate);
             }
             animate();
-            document.addEventListener('mousedown', () => cursor.classList.add('clicking'));
-            document.addEventListener('mouseup', () => cursor.classList.remove('clicking'));
             document.addEventListener('mouseover', (e) => { 
                 if (e.target.closest('a, button, select, input, .leaflet-marker-icon')) cursor.classList.add('hovering'); 
             });
@@ -150,11 +147,11 @@
             });
         })();
 
-        /* --- 2. Map & Regions --- */
+        // --- 2. Map & Regions ---
         const map = L.map('map', { zoomControl: false }).setView([-40.9, 174.88], 6);
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
 
-        let activeMask = null, activeOutline = null, allSpots = [];
+        let activeMask = null, allSpots = [];
 
         const regions = {
             "northland": [[-34.3, 172.4], [-34.2, 173.2], [-35.0, 174.4], [-36.2, 174.9], [-36.5, 174.2], [-35.8, 173.0], [-34.3, 172.4]],
@@ -169,15 +166,21 @@
 
         function handleRegionChange(val) {
             if (activeMask) map.removeLayer(activeMask);
-            if (activeOutline) map.removeLayer(activeOutline);
             if (val === "nz") { map.flyTo([-40.9, 174.88], 6); return; }
+            
             const coords = regions[val];
-            activeMask = L.polygon([[[-90, -180], [-90, 180], [90, 180], [90, -180]], coords], { className: 'map-mask', stroke: false }).addTo(map);
-            activeOutline = L.polygon(coords, { color: 'white', weight: 2, fillOpacity: 0, dashArray: '5, 10' }).addTo(map);
-            map.flyToBounds(L.polygon(coords).getBounds(), { padding: [50, 50], duration: 1.5 });
+            const world = [[-90, -180], [-90, 180], [90, 180], [90, -180]];
+            
+            // Mask with high blur, no outline
+            activeMask = L.polygon([world, coords], { 
+                className: 'map-mask', 
+                stroke: false 
+            }).addTo(map);
+
+            map.flyToBounds(L.polygon(coords).getBounds(), { padding: [100, 100], duration: 1.5 });
         }
 
-        /* --- 3. Supabase & UI Interaction --- */
+        // --- 3. Data Logic ---
         const SUPABASE_URL = 'https://igntxtfvlcewvqazkwyf.supabase.co';
         const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlnbnR4dGZ2bGNld3ZxYXprd3lmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxOTM0ODMsImV4cCI6MjA4NTc2OTQ4M30.mxlSU_vXTzcgJO-WtB-qp9m9lKlC_PuYq2c__9m1UR8';
         const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -194,8 +197,6 @@
                             iconSize: [25, 41], iconAnchor: [12, 41] 
                         })
                     }).addTo(map);
-                    marker.on('mouseover', () => document.getElementById('cursor').classList.add(spot.type === 'wave' ? 'hover-wave' : 'hover-flat'));
-                    marker.on('mouseout', () => document.getElementById('cursor').classList.remove('hover-wave', 'hover-flat'));
                     marker.on('click', () => openSpot(spot));
                 });
             }
@@ -206,12 +207,9 @@
             document.getElementById('spot-type').innerText = spot.type === 'wave' ? '🌊 Wave Spot' : '🏖️ Flatland Spot';
             document.getElementById('spot-desc').innerText = spot.description || "No description provided.";
             document.getElementById('spot-img').src = spot.image_url || '';
-
-            // Update the Traffic Lights (1=Red, 2=Orange, 3=Green)
             updateLight('light-low', spot.rating_low);
             updateLight('light-mid', spot.rating_mid);
             updateLight('light-high', spot.rating_high);
-
             document.getElementById('info-panel').classList.add('active');
             map.flyTo([spot.lat, spot.lng], 15);
             getTides(spot.lat, spot.lng);
@@ -219,7 +217,7 @@
 
         function updateLight(id, rating) {
             const el = document.getElementById(id);
-            el.className = 'tide-light'; // reset
+            el.className = 'tide-light';
             if (!rating) { el.innerText = '??'; return; }
             el.classList.add('light-' + rating);
             el.innerText = rating === 3 ? 'GOOD' : (rating === 2 ? 'AVG' : 'NO GO');
