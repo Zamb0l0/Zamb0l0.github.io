@@ -25,7 +25,7 @@
 
         /* --- REGIONAL TOPOGRAPHY OVERLAY --- */
         .region-overlay {
-            filter: blur(20px); /* Slightly reduced blur to keep it visible */
+            filter: blur(20px); 
             pointer-events: none !important; 
             transition: opacity 0.5s ease-in-out;
         }
@@ -94,8 +94,10 @@
             <option value="Waikato">WAIKATO</option>
             <option value="Bay of Plenty">BAY OF PLENTY</option>
             <option value="Taranaki">TARANAKI</option>
+            <option value="Manawatu-Whanganui">MANAWATŪ-WHANGANUI</option>
             <option value="Canterbury">CANTERBURY</option>
             <option value="Otago">OTAGO</option>
+            <option value="Southland">SOUTHLAND</option>
         </select>
         <input type="text" id="search-bar" placeholder="🔍 SEARCH BEACH..." oninput="searchSpots(this.value)">
     </div>
@@ -121,7 +123,7 @@
 
     <div id="map"></div>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <script>
@@ -140,7 +142,7 @@
         const map = L.map('map', { zoomControl: false }).setView([-40.9, 174.88], 6);
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
 
-        let boundaryLayer = L.layerGroup().addTo(map); // Changed to LayerGroup to manage sub-layers better
+        let boundaryLayer = L.layerGroup().addTo(map);
         let activeOverlay = null;
         let allMarkers = [];
 
@@ -148,13 +150,9 @@
             try {
                 const bResp = await fetch('cdem-group-boundaries.json');
                 const bData = await bResp.json();
-                
-                // We add the data to boundaryLayer so handleRegionChange can see it
                 L.geoJSON(bData, {
                     style: { color: 'transparent', weight: 0, fillOpacity: 0 },
-                    onEachFeature: (feature, layer) => {
-                        boundaryLayer.addLayer(layer);
-                    }
+                    onEachFeature: (feature, layer) => { boundaryLayer.addLayer(layer); }
                 });
 
                 const cResp = await fetch('city.json');
@@ -171,7 +169,7 @@
                         });
                     }
                 }).addTo(map);
-            } catch (e) { console.error("Data failed to load", e); }
+            } catch (e) { console.error("GeoData load failed", e); }
         }
 
         function handleRegionChange(regionName) {
@@ -181,7 +179,6 @@
             let found = false;
             boundaryLayer.eachLayer(layer => {
                 const props = layer.feature.properties;
-                // Check both 'reg_name' and 'name' just in case the JSON format varies
                 const rawName = props.reg_name || props.name || "";
                 
                 const geoName = rawName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
@@ -190,21 +187,13 @@
                 if (geoName.includes(selectedName)) {
                     activeOverlay = L.geoJSON(layer.feature, {
                         className: 'region-overlay',
-                        style: { 
-                            color: '#00f2ff', 
-                            fillColor: '#00f2ff', 
-                            fillOpacity: 0.2, 
-                            weight: 10, // Thick for the feathered blur effect
-                            stroke: true 
-                        },
+                        style: { color: '#00f2ff', fillColor: '#00f2ff', fillOpacity: 0.2, weight: 10, stroke: true },
                         interactive: false
                     }).addTo(map);
-                    
                     map.flyToBounds(layer.getBounds(), { padding: [40, 40], duration: 1.5 });
                     found = true;
                 }
             });
-            if(!found) console.log("No match found for:", regionName);
         }
 
         const sb = supabase.createClient('https://igntxtfvlcewvqazkwyf.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlnbnR4dGZ2bGNld3ZxYXprd3lmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxOTM0ODMsImV4cCI6MjA4NTc2OTQ4M30.mxlSU_vXTzcgJO-WtB-qp9m9lKlC_PuYq2c__9m1UR8');
