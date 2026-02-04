@@ -25,9 +25,9 @@
 
         /* --- REGIONAL TOPOGRAPHY OVERLAY --- */
         .region-overlay {
-            filter: blur(25px); /* Creates the soft bleed effect from your image */
+            filter: blur(20px); /* The "bleed" effect */
             pointer-events: none;
-            transition: opacity 0.5s ease-in-out;
+            transition: all 0.5s ease-in-out;
         }
 
         /* --- UI ELEMENTS --- */
@@ -61,7 +61,6 @@
         #info-panel.active { right: 0; }
         .close-btn { cursor: pointer; float: right; font-size: 30px; line-height: 1; }
 
-        /* --- TIDE LIGHTS --- */
         .tide-rating-container { display: flex; justify-content: space-between; margin-top: 15px; gap: 8px; }
         .tide-light { 
             flex: 1; padding: 10px 4px; border-radius: 6px; text-align: center; 
@@ -80,14 +79,14 @@
     <div id="controls-container">
         <select id="region-select" onchange="handleRegionChange(this.value)">
             <option value="nz">ALL NEW ZEALAND</option>
-            <option value="northland">NORTHLAND</option>
-            <option value="auckland">AUCKLAND</option>
-            <option value="coromandel">COROMANDEL</option>
-            <option value="waikato">WAIKATO</option>
-            <option value="bop">BAY OF PLENTY</option>
-            <option value="taranaki">TARANAKI</option>
-            <option value="canterbury">CANTERBURY</option>
-            <option value="otago">OTAGO</option>
+            <option value="Northland">NORTHLAND</option>
+            <option value="Auckland">AUCKLAND</option>
+            <option value="Waikato">WAIKATO</option>
+            <option value="Bay of Plenty">BAY OF PLENTY</option>
+            <option value="Taranaki">TARANAKI</option>
+            <option value="Canterbury">CANTERBURY</option>
+            <option value="Otago">OTAGO</option>
+            <option value="Southland">SOUTHLAND</option>
         </select>
         <input type="text" id="search-bar" placeholder="🔍 SEARCH BEACH..." oninput="searchSpots(this.value)">
     </div>
@@ -130,49 +129,88 @@
             if (e.target.closest('a, button, select, input, .leaflet-marker-icon, .leaflet-interactive')) cursor.classList.remove('hovering'); 
         });
 
-        // --- 2. Map & Regions ---
+        // --- 2. Map Setup ---
         const map = L.map('map', { zoomControl: false }).setView([-40.9, 174.88], 6);
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
 
-        let activeOverlay = null;
+        let boundaryLayer = null;
+        let cityLayer = null;
 
-        // Colors sampled from your Regional Council Map image
-        const regions = {
-            "northland": { coords: [[-34.3, 172.4], [-34.2, 173.2], [-35.0, 174.4], [-36.2, 174.9], [-35.8, 173.0]], color: "#d8a4be" }, // Pink
-            "auckland": { coords: [[-36.4, 174.1], [-36.0, 175.0], [-37.1, 175.3], [-37.4, 174.5]], color: "#c8d6a3" }, // Soft Green
-            "coromandel": { coords: [[-36.4, 175.3], [-36.3, 175.6], [-36.4, 176.0], [-37.6, 176.1], [-37.5, 175.7]], color: "#f2c17e" }, // Orange
-            "waikato": { coords: [[-37.2, 174.5], [-37.4, 175.8], [-38.2, 176.0], [-38.7, 174.5]], color: "#e8cf84" }, // Yellow
-            "bop": { coords: [[-37.3, 175.8], [-37.4, 178.0], [-38.3, 177.5], [-39.0, 176.0]], color: "#e4a6a6" }, // Soft Red
-            "taranaki": { coords: [[-38.6, 174.5], [-39.1, 175.1], [-40.0, 174.9], [-39.9, 173.6]], color: "#d1d5d8" }, // Grey
-            "canterbury": { coords: [[-42.3, 172.5], [-43.0, 174.1], [-44.8, 171.4], [-44.9, 170.1]], color: "#f7cbd1" }, // Light Pink
-            "otago": { coords: [[-44.4, 169.0], [-45.1, 171.2], [-46.8, 169.9], [-46.6, 168.2]], color: "#b9d9c3" }  // Pale Green
-        };
+        // --- 3. Load Your Data Files ---
 
-        function handleRegionChange(val) {
-            if (activeOverlay) map.removeLayer(activeOverlay);
-            if (val === "nz") { map.flyTo([-40.9, 174.88], 6); return; }
+        async function loadBoundaries() {
+            const response = await fetch('cdem-group-boundaries.json');
+            const data = await response.json();
 
-            const region = regions[val];
-            // Land-focused overlay with high feathering
-            activeOverlay = L.polygon(region.coords, {
-                color: region.color,
-                fillColor: region.color,
-                fillOpacity: 0.5,
-                weight: 0,
-                className: 'region-overlay'
+            boundaryLayer = L.geoJSON(data, {
+                style: function(feature) {
+                    return {
+                        fillColor: '#00f2ff',
+                        fillOpacity: 0.05,
+                        color: '#00f2ff',
+                        weight: 1,
+                        className: 'region-overlay'
+                    };
+                }
             }).addTo(map);
-
-            map.flyToBounds(activeOverlay.getBounds(), { padding: [100, 100], duration: 1.5 });
         }
 
-        // --- 3. Supabase Logic ---
+        async function loadCities() {
+            const response = await fetch('city.json');
+            const data = await response.json();
+
+            cityLayer = L.geoJSON(data, {
+                pointToLayer: (feature, latlng) => {
+                    return L.circleMarker(latlng, {
+                        radius: 4,
+                        fillColor: "#fff",
+                        color: "#000",
+                        weight: 1,
+                        fillOpacity: 0.8
+                    });
+                },
+                onEachFeature: (feature, layer) => {
+                    if (feature.properties && feature.properties.NAME) {
+                        layer.bindTooltip(feature.properties.NAME, { 
+                            direction: 'top', 
+                            offset: [0, -5] 
+                        });
+                    }
+                }
+            }).addTo(map);
+        }
+
+        // --- 4. Interactive Region Logic ---
+
+        function handleRegionChange(val) {
+            if (!boundaryLayer) return;
+
+            if (val === "nz") {
+                map.flyTo([-40.9, 174.88], 6);
+                boundaryLayer.setStyle({ fillOpacity: 0.05, weight: 1 });
+                return;
+            }
+
+            boundaryLayer.eachLayer(layer => {
+                // Matches the dropdown value to the 'group_name' in your JSON
+                const name = layer.feature.properties.group_name;
+                
+                if (name === val) {
+                    layer.setStyle({ fillOpacity: 0.4, weight: 3 });
+                    map.flyToBounds(layer.getBounds(), { padding: [50, 50], duration: 1.5 });
+                } else {
+                    layer.setStyle({ fillOpacity: 0.02, weight: 0.5 });
+                }
+            });
+        }
+
+        // --- 5. Supabase & Spots ---
         const sb = supabase.createClient('https://igntxtfvlcewvqazkwyf.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlnbnR4dGZ2bGNld3ZxYXprd3lmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxOTM0ODMsImV4cCI6MjA4NTc2OTQ4M30.mxlSU_vXTzcgJO-WtB-qp9m9lKlC_PuYq2c__9m1UR8');
 
         async function loadSpots() {
             const { data } = await sb.from('spots').select('*').eq('is_approved', true);
             if (data) {
                 data.forEach(spot => {
-                    // Modern "Tech" circle markers
                     const marker = L.circleMarker([spot.lat, spot.lng], {
                         radius: 8, color: '#00f2ff', fillColor: '#00f2ff', fillOpacity: 0.8, weight: 2
                     }).addTo(map);
@@ -202,13 +240,12 @@
             el.innerText = rating === 3 ? 'GOOD' : (rating === 2 ? 'AVG' : 'NO GO');
         }
 
-        function searchSpots(query) {
-            if (query.length < 3) return;
-            // Spot logic would go here
-        }
-
         function closePanel() { document.getElementById('info-panel').classList.remove('active'); }
         function locateUser() { map.locate({setView: true, maxZoom: 15}); }
+
+        // Start everything
+        loadBoundaries();
+        loadCities();
         loadSpots();
     </script>
 </body>
