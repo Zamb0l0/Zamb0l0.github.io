@@ -30,17 +30,12 @@
         @media (hover: hover) and (pointer: fine) {
             * { cursor: none !important; }
             #cursor {
-                width: 1rem; height: 1rem; 
-                background-color: white; 
-                border-radius: 50%; position: fixed; pointer-events: none; z-index: 99999;
-                transform: translate(-50%, -50%); 
-                mix-blend-mode: difference; 
-                box-shadow: 0 0 10px #00f2ff;
-                transition: transform 0.15s ease-out; 
-                will-change: transform, left, top;
+                width: 1rem; height: 1rem; background-color: white; border-radius: 50%; 
+                position: fixed; pointer-events: none; z-index: 99999;
+                transform: translate(-50%, -50%); mix-blend-mode: difference; 
+                box-shadow: 0 0 10px #00f2ff; transition: transform 0.15s ease-out; 
             }
             #cursor.hovering { transform: translate(-50%, -50%) scale(4); opacity: 0.4; }
-            #cursor.clicking { transform: translate(-50%, -50%) scale(0.5); }
         }
 
         /* --- UI ELEMENTS --- */
@@ -62,17 +57,6 @@
         }
 
         #locate-btn { position: absolute; bottom: 30px; left: 20px; z-index: 1000; background: #00f2ff; color: black; border: none; padding: 12px 18px; border-radius: 8px; font-weight: bold; }
-        
-        /* --- LEGEND --- */
-        #map-legend {
-            position: absolute; bottom: 90px; right: 20px; z-index: 1000;
-            background: rgba(0,0,0,0.8); color: white; padding: 10px 15px;
-            border-radius: 8px; border: 1px solid rgba(255,255,255,0.2);
-            font-size: 10px; font-weight: bold; letter-spacing: 1px;
-        }
-        .legend-item { display: flex; align-items: center; gap: 8px; margin-bottom: 5px; }
-        .dot { width: 10px; height: 10px; border-radius: 50%; }
-
         #add-link { position: absolute; bottom: 30px; right: 20px; z-index: 1000; background: rgba(255,255,255,0.9); color: black; padding: 12px 18px; border-radius: 8px; text-decoration: none; font-weight: bold; }
 
         /* --- INFO PANEL & TIDE LIGHTS --- */
@@ -89,16 +73,18 @@
         .tide-light { 
             flex: 1; padding: 12px 4px; border-radius: 8px; text-align: center; 
             font-size: 11px; font-weight: 900; color: white; text-transform: uppercase;
-            background-color: #eee; color: #999; transition: all 0.3s;
+            background-color: #ddd; transition: all 0.3s ease;
         }
-        .light-1 { background-color: #ff4444 !important; color: white !important; box-shadow: 0 0 10px rgba(255,68,68,0.5); } 
-        .light-2 { background-color: #ffbb33 !important; color: white !important; box-shadow: 0 0 10px rgba(255,187,51,0.5); }
-        .light-3 { background-color: #00c851 !important; color: white !important; box-shadow: 0 0 10px rgba(0,200,81,0.5); }
+        /* Tide Colors */
+        .light-1 { background-color: #ff4444 !important; box-shadow: 0 0 10px rgba(255,68,68,0.4); } /* NO GO / BAD */
+        .light-2 { background-color: #ffbb33 !important; box-shadow: 0 0 10px rgba(255,187,51,0.4); } /* AVG / OK */
+        .light-3 { background-color: #00c851 !important; box-shadow: 0 0 10px rgba(0,200,81,0.4); } /* GOOD */
         .tide-label { color: #888; font-size: 9px; margin-bottom: 4px; display: block; text-align: center; font-weight: bold; }
 
+        /* Map styling */
         .region-mask { fill: #000; fill-opacity: 0.6; stroke: none; pointer-events: none !important; }
         .region-highlight { filter: drop-shadow(0 0 15px #00f2ff); pointer-events: none !important; }
-        .city-label { background: none; border: none; color: rgba(255,255,255,0.7); font-size: 10px; font-weight: bold; text-transform: uppercase; text-shadow: 0 0 5px black; pointer-events: auto; }
+        .city-label { background: none; border: none; color: rgba(255,255,255,0.7); font-size: 10px; font-weight: bold; text-transform: uppercase; text-shadow: 0 0 5px black; }
         
         .hue-blue { filter: hue-rotate(140deg) brightness(1.2); }
         .hue-green { filter: hue-rotate(260deg) brightness(1.2); }
@@ -134,25 +120,19 @@
 
     <div id="title-card"><h1>SKIM AOTEAROA</h1></div>
     <button id="locate-btn" onclick="locateUser()">🎯 FIND MY BEACH</button>
-    
-    <div id="map-legend">
-        <div class="legend-item"><div class="dot" style="background: #00f2ff; filter: hue-rotate(140deg);"></div> WAVES</div>
-        <div class="legend-item"><div class="dot" style="background: #00f2ff; filter: hue-rotate(260deg);"></div> FLATLAND</div>
-    </div>
-
     <a href="add.html" id="add-link">➕ ADD SPOT</a>
 
     <div id="info-panel">
         <div><span class="close-btn" onclick="closePanel()">&times;</span></div>
-        <h2 id="spot-name" style="margin-top:10px; letter-spacing: -0.5px;">Spot Name</h2>
-        <p style="font-size: 11px; font-weight: 800; margin: 20px 0 5px 0; color: #999; letter-spacing: 1px;">TIDE TRAFFIC LIGHTS</p>
+        <h2 id="spot-name" style="margin-top:10px;">Spot Name</h2>
+        <p style="font-size: 11px; font-weight: bold; margin: 20px 0 5px 0; color: #888; letter-spacing: 1px;">SKIMMABILITY BY TIDE:</p>
         <div class="tide-rating-container">
             <div><span class="tide-label">LOW</span><div id="light-low" class="tide-light">-</div></div>
             <div><span class="tide-label">MID</span><div id="light-mid" class="tide-light">-</div></div>
             <div><span class="tide-label">HIGH</span><div id="light-high" class="tide-light">-</div></div>
         </div>
-        <p id="spot-desc" style="line-height: 1.6; color: #555; font-size: 14px; margin-top: 25px;"></p>
-        <img id="spot-img" style="width:100%; border-radius: 12px; margin-top: 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.1);" src="">
+        <p id="spot-desc" style="line-height: 1.6; color: #444; font-size: 14px; margin-top: 25px;"></p>
+        <img id="spot-img" style="width:100%; border-radius: 12px; margin-top: 20px;" src="">
     </div>
 
     <div id="map"></div>
@@ -161,11 +141,11 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
     <script>
-    // --- MAP SETUP ---
+    // --- 1. INITIALIZE MAP ---
     const map = L.map('map', { 
         zoomControl: false, 
         minZoom: 4, 
-        worldCopyJump: true // Infinite pan support
+        worldCopyJump: true // Crucial East Coast fix
     }).setView([-40.9, 174.88], 6);
 
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
@@ -174,7 +154,7 @@
     let activeOverlay = null;
     let allMarkers = [];
 
-    // --- CURSOR ---
+    // --- 2. SMOOTH CURSOR ---
     (function () {
         const cursor = document.getElementById('cursor');
         let mouseX = window.innerWidth / 2, mouseY = window.innerHeight / 2;
@@ -188,14 +168,14 @@
             requestAnimationFrame(animate);
         }
         animate();
-        document.addEventListener('mousedown', () => cursor.classList.add('clicking'));
-        document.addEventListener('mouseup', () => cursor.classList.remove('clicking'));
-        const targets = 'h1, h2, a, button, input, select, .leaflet-marker-icon, .city-label, .close-btn';
+        const targets = 'a, button, input, select, .leaflet-marker-icon, .city-label, .close-btn';
         document.addEventListener('mouseover', e => { if (e.target.closest(targets)) cursor.classList.add('hovering'); });
         document.addEventListener('mouseout', e => { if (e.target.closest(targets)) cursor.classList.remove('hovering'); });
     })();
 
-    // --- DATA ---
+    // --- 3. DATA LOADING ---
+    const sb = supabase.createClient('https://igntxtfvlcewvqazkwyf.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlnbnR4dGZ2bGNld3ZxYXprd3lmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxOTM0ODMsImV4cCI6MjA4NTc2OTQ4M30.mxlSU_vXTzcgJO-WtB-qp9m9lKlC_PuYq2c__9m1UR8');
+
     async function loadGeoData() {
         try {
             const bResp = await fetch('cdem-group-boundaries.json');
@@ -211,14 +191,13 @@
                 const cData = await cResp.json();
                 L.geoJSON(cData, {
                     pointToLayer: (f, latlng) => L.marker(latlng, {
-                        icon: L.divIcon({ className: 'city-label', html: `<span>${f.properties.NAME || f.properties.name || ""}</span>`, iconSize: [120, 20] })
+                        icon: L.divIcon({ className: 'city-label', html: `<span>${f.properties.NAME || ""}</span>`, iconSize: [120, 20] }),
+                        interactive: false
                     })
                 }).addTo(map);
             }
         } catch (e) { console.error(e); }
     }
-
-    const sb = supabase.createClient('https://igntxtfvlcewvqazkwyf.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlnbnR4dGZ2bGNld3ZxYXprd3lmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxOTM0ODMsImV4cCI6MjA4NTc2OTQ4M30.mxlSU_vXTzcgJO-WtB-qp9m9lKlC_PuYq2c__9m1UR8');
 
     async function loadSpots() {
         const { data } = await sb.from('spots').select('*').eq('is_approved', true);
@@ -232,19 +211,11 @@
                     document.getElementById('spot-desc').innerText = spot.description || "";
                     document.getElementById('spot-img').src = spot.image_url || "";
                     
-                    // --- TIDE LIGHT LOGIC ---
-                    ['low','mid','high'].forEach(t => {
-                        const el = document.getElementById('light-'+t);
-                        const r = spot[t+'_tide'];
-                        // Reset classes
-                        el.className = 'tide-light';
-                        if (r) {
-                            el.classList.add('light-' + r);
-                            el.innerText = r == 3 ? 'GOOD' : r == 2 ? 'OK' : 'BAD';
-                        } else {
-                            el.innerText = '-';
-                        }
-                    });
+                    // --- THE TIDE LIGHT FIX ---
+                    // Re-mapping to 'rating_low' etc. to match your working database
+                    updateLight('light-low', spot.rating_low);
+                    updateLight('light-mid', spot.rating_mid);
+                    updateLight('light-high', spot.rating_high);
                     
                     document.getElementById('info-panel').classList.add('active');
                 });
@@ -254,20 +225,35 @@
         }
     }
 
+    function updateLight(id, rating) {
+        const el = document.getElementById(id);
+        el.className = 'tide-light'; // Reset
+        if (!rating) {
+            el.innerText = '-';
+            return;
+        }
+        el.classList.add('light-' + rating);
+        el.innerText = rating == 3 ? 'GOOD' : (rating == 2 ? 'OK' : 'BAD');
+    }
+
+    // --- 4. REGION / SEARCH LOGIC ---
     function handleRegionChange(regionName) {
         if (activeOverlay) map.removeLayer(activeOverlay);
         if (regionName === "nz") { map.flyTo([-40.9, 174.88], 6); return; }
+        
         const target = regionName.toUpperCase();
         let found = null;
         boundaryLayer.eachLayer(l => {
             if (JSON.stringify(l.feature.properties).toUpperCase().includes(target)) found = l.feature;
         });
+
         if (found) {
             activeOverlay = L.layerGroup().addTo(map);
             const world = [[-90, -360], [-90, 360], [90, 360], [90, -360]];
             const coords = found.geometry.type === "MultiPolygon" 
                 ? found.geometry.coordinates.map(p => p[0].map(pt => [pt[1], pt[0]]))
                 : found.geometry.coordinates.map(r => r.map(pt => [pt[1], pt[0]]));
+            
             L.polygon([world, ...coords], { className: 'region-mask' }).addTo(activeOverlay);
             L.geoJSON(found, { className: 'region-highlight', style: { color: '#00f2ff', weight: 3, fillOpacity: 0 } }).addTo(activeOverlay);
             map.flyToBounds(L.geoJSON(found).getBounds(), { padding: [50, 50] });
@@ -284,11 +270,10 @@
 
     async function init() {
         await Promise.all([loadGeoData(), loadSpots()]);
-        const loader = document.getElementById('loader');
-        loader.style.opacity = '0';
-        setTimeout(() => loader.style.visibility = 'hidden', 800);
+        document.getElementById('loader').style.opacity = '0';
+        setTimeout(() => document.getElementById('loader').style.visibility = 'hidden', 800);
     }
     init();
-</script>
+    </script>
 </body>
 </html>
