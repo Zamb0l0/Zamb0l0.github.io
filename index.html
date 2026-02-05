@@ -3,12 +3,12 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SKIM AOTEAROA</title>
+    <title>SKIM AOTEAROA | PRO-WIDE</title>
 
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; font-family: sans-serif; overflow: hidden; background: #0b0d0f; }
-        #map { height: 100vh; width: 100vw; z-index: 1; background: #0b0d0f; }
+        body, html { margin: 0; padding: 0; height: 100%; font-family: sans-serif; overflow: hidden; background: #060708; }
+        #map { height: 100vh; width: 100vw; z-index: 1; background: #060708; }
 
         /* --- LOADING SPINNER --- */
         #loader {
@@ -26,36 +26,20 @@
         @keyframes glow { 0%, 100% { box-shadow: 0 0 5px #00f2ff; } 50% { box-shadow: 0 0 20px #00f2ff; } }
         #loader p { color: #00f2ff; margin-top: 15px; letter-spacing: 4px; font-size: 12px; font-weight: bold; }
 
-        /* --- CUSTOM CURSOR --- */
+        /* --- CUSTOM CURSOR (INVERTING) --- */
         @media (hover: hover) and (pointer: fine) {
             * { cursor: none !important; }
             #cursor {
-                width: 1rem; height: 1rem; 
-                background-color: white; /* White + Difference = Invert */
+                width: 1.1rem; height: 1.1rem; 
+                background-color: white; /* Difference mode on white = pure inversion */
                 border-radius: 50%; position: fixed; pointer-events: none; z-index: 99999;
                 transform: translate(-50%, -50%); 
-                mix-blend-mode: difference; /* INVERTS COLORS BENEATH */
+                mix-blend-mode: difference; 
                 transition: transform 0.15s ease-out; 
                 will-change: transform, left, top;
             }
-            #cursor.hovering { 
-                transform: translate(-50%, -50%) scale(4); 
-            }
-            #cursor.clicking {
-                transform: translate(-50%, -50%) scale(0.5);
-            }
-        }
-
-        /* --- REGIONAL MASK & HIGHLIGHT --- */
-        .region-mask {
-            fill: #000;
-            fill-opacity: 0.5;
-            stroke: none;
-            pointer-events: none !important;
-        }
-        .region-highlight {
-            filter: drop-shadow(0 0 15px #00f2ff);
-            pointer-events: none !important;
+            #cursor.hovering { transform: translate(-50%, -50%) scale(4); }
+            #cursor.clicking { transform: translate(-50%, -50%) scale(0.6); }
         }
 
         /* --- CITY LABELS --- */
@@ -63,7 +47,7 @@
             background: none; border: none; box-shadow: none;
             color: rgba(255,255,255,0.7); font-size: 10px; font-weight: bold;
             letter-spacing: 1px; text-transform: uppercase; text-shadow: 0 0 5px black;
-            pointer-events: auto; 
+            pointer-events: auto; /* Required for cursor enlargement */
         }
 
         /* --- UI ELEMENTS --- */
@@ -103,6 +87,7 @@
             font-size: 10px; font-weight: bold; color: white; text-transform: uppercase;
             background-color: #ddd; 
         }
+        /* Specific colored states */
         .tide-light.light-1 { background-color: #ff4444 !important; } /* BAD */
         .tide-light.light-2 { background-color: #ffbb33 !important; } /* OK */
         .tide-light.light-3 { background-color: #00c851 !important; } /* GOOD */
@@ -166,25 +151,22 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
    <script>
-    // --- 1. DEFINE NZ BOUNDS ---
-    // This rectangle covers NZ. The map will not load data outside this box.
-    const nzBounds = [
-        [-48.5, 165.0], // Southwest corner (Stewart Island approx)
-        [-33.0, 180.0]  // Northeast corner (North Cape approx)
+    // --- 1. ULTRAWIDE BOUNDS ---
+    const wideBounds = [
+        [-52.0, 155.0], // Southwestern limit
+        [-30.0, 195.0]  // Northeastern limit
     ];
 
-    // --- 2. MAP INITIALIZATION WITH BOUNDS ---
+    // --- 2. MAP INITIALIZATION ---
     const map = L.map('map', { 
         zoomControl: false,
-        maxBounds: nzBounds,      // Hard lock: User cannot pan outside NZ
-        maxBoundsViscosity: 1.0,  // "Bounciness" of the edge (1.0 = solid wall)
-        minZoom: 5                // Prevent zooming out to see the empty world
-    }).setView([-40.9, 174.88], 6);
+        maxBounds: wideBounds,
+        maxBoundsViscosity: 1.0,
+        minZoom: 5
+    }).setView([-41.0, 174.5], 6);
 
-    // --- 3. TILE LAYER WITH BOUNDS ---
-    // We add 'bounds' here too. This stops the browser from requesting tiles outside NZ.
     L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-        bounds: nzBounds,
+        bounds: wideBounds,
         attribution: 'Tiles &copy; Esri'
     }).addTo(map);
 
@@ -195,55 +177,32 @@
     // --- CURSOR LOGIC ---
     (function () {
         const cursor = document.getElementById('cursor');
-        if (!cursor || !window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+        if (!cursor) return;
 
         let mouseX = window.innerWidth / 2, mouseY = window.innerHeight / 2;
         let cursorX = mouseX, cursorY = mouseY;
 
-        document.addEventListener('mousemove', function (e) {
-            mouseX = e.clientX; mouseY = e.clientY;
-        }, { passive: true });
+        document.addEventListener('mousemove', e => { mouseX = e.clientX; mouseY = e.clientY; }, { passive: true });
 
         function animate() {
-            const smoothingFactor = 0.08; 
-            cursorX += (mouseX - cursorX) * smoothingFactor;
-            cursorY += (mouseY - cursorY) * smoothingFactor;
+            const smoothing = 0.08; 
+            cursorX += (mouseX - cursorX) * smoothing;
+            cursorY += (mouseY - cursorY) * smoothing;
             cursor.style.left = cursorX + 'px';
             cursor.style.top = cursorY + 'px';
             requestAnimationFrame(animate);
         }
         animate();
 
-        document.addEventListener('mousedown', function () { cursor.classList.add('clicking'); });
-        document.addEventListener('mouseup', function () { cursor.classList.remove('clicking'); });
+        document.addEventListener('mousedown', () => cursor.classList.add('clicking'));
+        document.addEventListener('mouseup', () => cursor.classList.remove('clicking'));
 
-        const hoverTargets = [
-            'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'strong', 
-            'a', 'button', 'input', 'select', 'label', 
-            '.leaflet-marker-icon', '.city-label'
-        ].join(', ');
-
-        document.addEventListener('mouseover', function (e) {
-            if (e.target.closest(hoverTargets)) cursor.classList.add('hovering');
-        });
-
-        document.addEventListener('mouseout', function (e) {
-            if (e.target.closest(hoverTargets)) cursor.classList.remove('hovering');
-        });
+        const hoverTargets = 'h1, h2, h3, h4, h5, h6, p, span, a, button, input, select, .leaflet-marker-icon, .city-label';
+        document.addEventListener('mouseover', e => { if (e.target.closest(hoverTargets)) cursor.classList.add('hovering'); });
+        document.addEventListener('mouseout', e => { if (e.target.closest(hoverTargets)) cursor.classList.remove('hovering'); });
     })();
 
-    // --- LOADING ---
-    const loaderTimeout = setTimeout(() => { hideLoader(); }, 5000); 
-    function hideLoader() {
-        const loader = document.getElementById('loader');
-        if (loader) {
-            loader.style.opacity = '0';
-            setTimeout(() => { loader.style.visibility = 'hidden'; }, 800);
-        }
-        clearTimeout(loaderTimeout);
-    }
-
-    // --- GEO DATA ---
+    // --- DATA LOADING ---
     async function loadGeoData() {
         try {
             const bResp = await fetch('cdem-group-boundaries.json');
@@ -254,120 +213,63 @@
                     style: { opacity: 0, fillOpacity: 0, interactive: false }
                 });
             }
-
             const cResp = await fetch('city.json');
             if (cResp.ok) {
                 const cData = await cResp.json();
                 L.geoJSON(cData, {
-                    pointToLayer: (feature, latlng) => {
-                        return L.marker(latlng, {
-                            icon: L.divIcon({
-                                className: 'city-label',
-                                html: `<span>${feature.properties.NAME || feature.properties.name || ""}</span>`,
-                                iconSize: [100, 20]
-                            }),
-                            interactive: true 
-                        });
-                    }
+                    pointToLayer: (f, latlng) => L.marker(latlng, {
+                        icon: L.divIcon({ className: 'city-label', html: `<span>${f.properties.NAME || f.properties.name || ""}</span>`, iconSize: [120, 20] }),
+                        interactive: true // So cursor expands on city names
+                    })
                 }).addTo(map);
             }
-        } catch (e) { console.error("GeoData Error:", e.message); }
+        } catch (e) { console.error(e); }
     }
 
-    // --- REGIONS ---
-    function handleRegionChange(regionName) {
-        if (activeOverlay) map.removeLayer(activeOverlay);
-        if (regionName === "nz") { map.flyTo([-40.9, 174.88], 6); return; }
-
-        const target = regionName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
-        let foundFeature = null;
-
-        boundaryLayer.eachLayer(layer => {
-            const props = layer.feature.properties;
-            for (let key in props) {
-                const value = String(props[key]).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
-                if (value.includes(target)) { foundFeature = layer.feature; break; }
-            }
-        });
-
-        if (foundFeature) {
-            activeOverlay = L.layerGroup().addTo(map);
-            const worldBox = [[-90, -180], [-90, 180], [90, 180], [90, -180]];
-            const regionCoords = foundFeature.geometry.type === "MultiPolygon" 
-                ? foundFeature.geometry.coordinates.map(poly => poly[0].map(pt => [pt[1], pt[0]]))
-                : foundFeature.geometry.coordinates.map(ring => ring.map(pt => [pt[1], pt[0]]));
-
-            L.polygon([worldBox, ...regionCoords], {
-                className: 'region-mask', color: 'black', weight: 0, fillOpacity: 0.5, interactive: false
-            }).addTo(activeOverlay);
-
-            L.geoJSON(foundFeature, {
-                className: 'region-highlight', style: { color: '#00f2ff', weight: 3, fillOpacity: 0, opacity: 1 }, interactive: false
-            }).addTo(activeOverlay);
-
-            map.flyToBounds(L.geoJSON(foundFeature).getBounds(), { padding: [50, 50], duration: 1.8 });
+    // --- TIDE LIGHTS FIX ---
+    function updateLight(id, rating) {
+        const el = document.getElementById(id);
+        el.className = 'tide-light'; // Wipe old colors
+        if (rating == 1 || rating == 2 || rating == 3) {
+            el.classList.add('light-' + rating);
+            el.innerText = rating == 3 ? 'GOOD' : rating == 2 ? 'OK' : 'BAD';
+        } else {
+            el.innerText = '-';
         }
     }
 
-    // --- SPOTS ---
-    function searchSpots(query) {
-        const q = query.toLowerCase();
-        allMarkers.forEach(spot => {
-            const match = spot.name.toLowerCase().includes(q) || (spot.description || "").toLowerCase().includes(q);
-            if (match) {
-                spot.marker.setOpacity(1);
-                spot.marker.getElement()?.style.setProperty('display', 'block');
-            } else {
-                spot.marker.setOpacity(0.1); 
-            }
-        });
-    }
-
+    // --- SUPABASE & INIT ---
     const sb = supabase.createClient('https://igntxtfvlcewvqazkwyf.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlnbnR4dGZ2bGNld3ZxYXprd3lmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxOTM0ODMsImV4cCI6MjA4NTc2OTQ4M30.mxlSU_vXTzcgJO-WtB-qp9m9lKlC_PuYq2c__9m1UR8');
 
     async function loadSpots() {
         const { data } = await sb.from('spots').select('*').eq('is_approved', true);
         if (data) {
             data.forEach(spot => {
-                const colorClass = spot.spot_type === 'wave' ? 'hue-blue' : 'hue-green';
                 const marker = L.marker([spot.lat, spot.lng]).addTo(map);
-                if (marker._icon) marker._icon.classList.add(colorClass);
-                marker.on('click', () => openSpot(spot));
+                if (marker._icon) marker._icon.classList.add(spot.spot_type === 'wave' ? 'hue-blue' : 'hue-green');
+                marker.on('click', () => {
+                    document.getElementById('spot-name').innerText = spot.name;
+                    document.getElementById('spot-desc').innerText = spot.description || "";
+                    document.getElementById('spot-img').src = spot.image_url || "";
+                    updateLight('light-low', spot.low_tide);
+                    updateLight('light-mid', spot.mid_tide);
+                    updateLight('light-high', spot.high_tide);
+                    document.getElementById('info-panel').classList.add('active');
+                });
                 spot.marker = marker;
                 allMarkers.push(spot);
             });
         }
     }
 
-    function openSpot(spot) {
-        document.getElementById('spot-name').innerText = spot.name;
-        document.getElementById('spot-desc').innerText = spot.description || "No description available.";
-        document.getElementById('spot-img').src = spot.image_url || "";
-        updateLight('light-low', spot.low_tide);
-        updateLight('light-mid', spot.mid_tide);
-        updateLight('light-high', spot.high_tide);
-        document.getElementById('info-panel').classList.add('active');
-    }
-
-    function updateLight(id, rating) {
-        const el = document.getElementById(id);
-        el.className = 'tide-light'; 
-        if (rating === 1 || rating === 2 || rating === 3) {
-            el.classList.add('light-' + rating);
-            el.innerText = rating === 3 ? 'GOOD' : rating === 2 ? 'OK' : 'BAD';
-        } else {
-            el.innerText = '-';
-        }
-    }
-
     function closePanel() { document.getElementById('info-panel').classList.remove('active'); }
-
-    async function init() {
-        try { await Promise.all([loadGeoData(), loadSpots()]); } finally { hideLoader(); }
-    }
-
     function locateUser() { map.locate({setView: true, maxZoom: 12}); }
-
+    
+    async function init() {
+        await Promise.all([loadGeoData(), loadSpots()]);
+        document.getElementById('loader').style.opacity = '0';
+        setTimeout(() => document.getElementById('loader').style.visibility = 'hidden', 800);
+    }
     init();
 </script>
 </body>
