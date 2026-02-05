@@ -94,7 +94,10 @@
             <option value="Waikato">WAIKATO</option>
             <option value="Bay of Plenty">BAY OF PLENTY</option>
             <option value="Taranaki">TARANAKI</option>
+            <option value="Gisborne">GISBORNE</option>
+            <option value="Hawke's Bay">HAWKE'S BAY</option>
             <option value="Manawatu-Whanganui">MANAWATŪ-WHANGANUI</option>
+            <option value="Wellington">WELLINGTON</option>
             <option value="Canterbury">CANTERBURY</option>
             <option value="Otago">OTAGO</option>
             <option value="Southland">SOUTHLAND</option>
@@ -177,12 +180,15 @@
             if (regionName === "nz") { map.flyTo([-40.9, 174.88], 6); return; }
 
             let found = false;
+            // Normalize the selected region name from dropdown
+            const selectedName = regionName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+
             boundaryLayer.eachLayer(layer => {
                 const props = layer.feature.properties;
                 const rawName = props.reg_name || props.name || "";
                 
+                // Normalize the name from the JSON file
                 const geoName = rawName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
-                const selectedName = regionName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
 
                 if (geoName.includes(selectedName)) {
                     activeOverlay = L.geoJSON(layer.feature, {
@@ -194,6 +200,7 @@
                     found = true;
                 }
             });
+            if(!found) console.warn("No match in JSON for region:", regionName);
         }
 
         const sb = supabase.createClient('https://igntxtfvlcewvqazkwyf.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlnbnR4dGZ2bGNld3ZxYXprd3lmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxOTM0ODMsImV4cCI6MjA4NTc2OTQ4M30.mxlSU_vXTzcgJO-WtB-qp9m9lKlC_PuYq2c__9m1UR8');
