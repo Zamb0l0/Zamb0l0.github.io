@@ -39,11 +39,17 @@
             #cursor.hovering { transform: translate(-50%, -50%) scale(5); opacity: 0.6; }
         }
 
-        /* --- REGIONAL TOPOGRAPHY OVERLAY --- */
-        .region-overlay {
-            filter: blur(20px); 
-            pointer-events: none !important; 
-            transition: opacity 0.5s ease-in-out;
+        /* --- REGIONAL MASK & HIGHLIGHT --- */
+        .region-mask {
+            fill: #000;
+            fill-opacity: 0.5; /* 50% Black Mask */
+            stroke: none;
+            pointer-events: none !important;
+        }
+
+        .region-highlight {
+            filter: drop-shadow(0 0 15px #00f2ff); /* Neon Glow Outline */
+            pointer-events: none !important;
         }
 
         /* --- CITY LABELS --- */
@@ -159,8 +165,21 @@
     let activeOverlay = null;
     let allMarkers = [];
 
+    // --- CURSOR LOGIC ---
+    const cursor = document.getElementById('cursor');
+    document.addEventListener('mousemove', (e) => {
+        cursor.style.left = e.clientX + 'px';
+        cursor.style.top = e.clientY + 'px';
+    });
+    document.addEventListener('mouseover', (e) => {
+        if (e.target.tagName === 'BUTTON' || e.target.tagName === 'A' || e.target.tagName === 'SELECT' || e.target.classList.contains('leaflet-marker-icon')) {
+            cursor.classList.add('hovering');
+        } else {
+            cursor.classList.remove('hovering');
+        }
+    });
+
     // --- LOADING LOGIC ---
-    // Safety net: if things take longer than 5s, show the map anyway
     const loaderTimeout = setTimeout(() => {
         hideLoader();
         console.warn("Loading took too long - bypassing loader.");
@@ -178,7 +197,6 @@
     // --- DATA LOADING ---
     async function loadGeoData() {
         try {
-            // Load Boundaries
             const bResp = await fetch('cdem-group-boundaries.json');
             if (!bResp.ok) throw new Error("Boundaries file not found");
             const bData = await bResp.json();
@@ -190,7 +208,6 @@
                 style: { opacity: 0, fillOpacity: 0, interactive: false }
             });
 
-            // Load Cities
             const cResp = await fetch('city.json');
             if (cResp.ok) {
                 const cData = await cResp.json();
@@ -207,51 +224,71 @@
                     }
                 }).addTo(map);
             }
-        } catch (e) { 
-            console.error("GeoData Error:", e.message); 
-        }
+        } catch (e) { console.error("GeoData Error:", e.message); }
     }
 
-    // --- REGION SEARCH LOGIC ---
+    // --- REGION SEARCH & MASK LOGIC ---
     function handleRegionChange(regionName) {
-        console.log("Selected:", regionName);
         if (activeOverlay) map.removeLayer(activeOverlay);
         if (regionName === "nz") { map.flyTo([-40.9, 174.88], 6); return; }
 
         const target = regionName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
-        let foundLayer = null;
+        let foundFeature = null;
 
         boundaryLayer.eachLayer(layer => {
             const props = layer.feature.properties;
             for (let key in props) {
                 const value = String(props[key]).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
                 if (value.includes(target)) {
-                    foundLayer = layer;
+                    foundFeature = layer.feature;
                     break;
                 }
             }
         });
 
-        if (foundLayer) {
-            activeOverlay = L.geoJSON(foundLayer.feature, {
-                className: 'region-overlay',
-                style: { 
-                    color: '#00f2ff', 
-                    fillColor: '#00f2ff', 
-                    fillOpacity: 0.15, 
-                    weight: 12, 
-                    stroke: true 
-                },
-                interactive: false
-            }).addTo(map);
+        if (foundFeature) {
+            activeOverlay = L.layerGroup().addTo(map);
 
-            map.flyToBounds(foundLayer.getBounds(), { padding: [50, 50], duration: 1.8 });
-        } else {
-            console.warn("No match found for:", regionName);
+            // 1. CREATE DARK MASK (World rectangle with a hole)
+            const worldBox = [[-90, -180], [-90, 180], [90, 180], [90, -180]];
+            const regionCoords = foundFeature.geometry.type === "MultiPolygon" 
+                ? foundFeature.geometry.coordinates.map(poly => poly[0].map(pt => [pt[1], pt[0]]))
+                : foundFeature.geometry.coordinates.map(ring => ring.map(pt => [pt[1], pt[0]]));
+
+            L.polygon([worldBox, ...regionCoords], {
+                className: 'region-mask',
+                color: 'black',
+                weight: 0,
+                fillOpacity: 0.5,
+                interactive: false
+            }).addTo(activeOverlay);
+
+            // 2. CREATE GLOWING OUTLINE
+            L.geoJSON(foundFeature, {
+                className: 'region-highlight',
+                style: { color: '#00f2ff', weight: 3, fillOpacity: 0, opacity: 1 },
+                interactive: false
+            }).addTo(activeOverlay);
+
+            map.flyToBounds(L.geoJSON(foundFeature).getBounds(), { padding: [50, 50], duration: 1.8 });
         }
     }
 
-    // --- SUPABASE & INITIALIZATION ---
+    // --- SEARCH SPOTS LOGIC ---
+    function searchSpots(query) {
+        const q = query.toLowerCase();
+        allMarkers.forEach(spot => {
+            const match = spot.name.toLowerCase().includes(q) || (spot.description || "").toLowerCase().includes(q);
+            if (match) {
+                spot.marker.setOpacity(1);
+                spot.marker.getElement()?.style.setProperty('display', 'block');
+            } else {
+                spot.marker.setOpacity(0.1); // Dim non-matching spots
+            }
+        });
+    }
+
+    // --- SUPABASE & INIT ---
     const sb = supabase.createClient('https://igntxtfvlcewvqazkwyf.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlnbnR4dGZ2bGNld3ZxYXprd3lmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxOTM0ODMsImV4cCI6MjA4NTc2OTQ4M30.mxlSU_vXTzcgJO-WtB-qp9m9lKlC_PuYq2c__9m1UR8');
 
     async function loadSpots() {
@@ -268,21 +305,35 @@
         }
     }
 
-    // Launch everything
+    function openSpot(spot) {
+        document.getElementById('spot-name').innerText = spot.name;
+        document.getElementById('spot-desc').innerText = spot.description || "No description available.";
+        document.getElementById('spot-img').src = spot.image_url || "";
+        updateLight('light-low', spot.low_tide);
+        updateLight('light-mid', spot.mid_tide);
+        updateLight('light-high', spot.high_tide);
+        document.getElementById('info-panel').classList.add('active');
+    }
+
+    function updateLight(id, rating) {
+        const el = document.getElementById(id);
+        el.className = 'tide-light light-' + rating;
+        el.innerText = rating === 3 ? 'GOOD' : rating === 2 ? 'OK' : 'BAD';
+    }
+
+    function closePanel() { document.getElementById('info-panel').classList.remove('active'); }
+
     async function init() {
         try {
-            await Promise.all([
-                loadGeoData().catch(e => console.error(e)),
-                loadSpots().catch(e => console.error(e))
-            ]);
-        } finally {
-            hideLoader();
-        }
+            await Promise.all([loadGeoData(), loadSpots()]);
+        } finally { hideLoader(); }
+    }
+
+    function locateUser() {
+        map.locate({setView: true, maxZoom: 12});
     }
 
     init();
-
-    // ... (Your searchSpots, openSpot, updateLight, and closePanel functions here) ...
 </script>
 </body>
 </html>
