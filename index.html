@@ -10,6 +10,22 @@
         body, html { margin: 0; padding: 0; height: 100%; font-family: sans-serif; overflow: hidden; background: #0b0d0f; }
         #map { height: 100vh; width: 100vw; z-index: 1; background: #0b0d0f; }
 
+        /* --- LOADING SPINNER --- */
+        #loader {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: #0b0d0f; z-index: 10000;
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            transition: opacity 0.8s ease-out, visibility 0.8s;
+        }
+        .spinner {
+            width: 50px; height: 50px; border: 3px solid rgba(0, 242, 255, 0.2);
+            border-top: 3px solid #00f2ff; border-radius: 50%;
+            animation: spin 1s linear infinite, glow 2s ease-in-out infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        @keyframes glow { 0%, 100% { box-shadow: 0 0 5px #00f2ff; } 50% { box-shadow: 0 0 20px #00f2ff; } }
+        #loader p { color: #00f2ff; margin-top: 15px; letter-spacing: 4px; font-size: 12px; font-weight: bold; }
+
         /* --- CUSTOM CURSOR --- */
         @media (hover: hover) and (pointer: fine) {
             * { cursor: none !important; }
@@ -83,6 +99,11 @@
     </style>
 </head>
 <body>
+
+    <div id="loader">
+        <div class="spinner"></div>
+        <p>LOADING AOTEAROA</p>
+    </div>
 
     <div id="cursor"></div>
 
@@ -179,15 +200,11 @@
             if (activeOverlay) map.removeLayer(activeOverlay);
             if (regionName === "nz") { map.flyTo([-40.9, 174.88], 6); return; }
 
-            let found = false;
-            // Normalize the selected region name from dropdown
             const selectedName = regionName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
 
             boundaryLayer.eachLayer(layer => {
                 const props = layer.feature.properties;
                 const rawName = props.reg_name || props.name || "";
-                
-                // Normalize the name from the JSON file
                 const geoName = rawName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
 
                 if (geoName.includes(selectedName)) {
@@ -197,10 +214,8 @@
                         interactive: false
                     }).addTo(map);
                     map.flyToBounds(layer.getBounds(), { padding: [40, 40], duration: 1.5 });
-                    found = true;
                 }
             });
-            if(!found) console.warn("No match in JSON for region:", regionName);
         }
 
         const sb = supabase.createClient('https://igntxtfvlcewvqazkwyf.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlnbnR4dGZ2bGNld3ZxYXprd3lmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxOTM0ODMsImV4cCI6MjA4NTc2OTQ4M30.mxlSU_vXTzcgJO-WtB-qp9m9lKlC_PuYq2c__9m1UR8');
@@ -249,7 +264,14 @@
         function closePanel() { document.getElementById('info-panel').classList.remove('active'); }
         function locateUser() { map.locate({setView: true, maxZoom: 15}); }
 
-        loadGeoData().then(loadSpots);
+        // Start loading everything
+        Promise.all([loadGeoData(), loadSpots()]).then(() => {
+            const loader = document.getElementById('loader');
+            loader.style.opacity = '0';
+            setTimeout(() => {
+                loader.style.visibility = 'hidden';
+            }, 800);
+        });
     </script>
 </body>
 </html>
