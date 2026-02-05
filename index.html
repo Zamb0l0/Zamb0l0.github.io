@@ -32,23 +32,34 @@
             #cursor {
                 width: 0.75rem; height: 0.75rem; background-color: #00f2ff;
                 border-radius: 50%; position: fixed; pointer-events: none; z-index: 99999;
-                transform: translate(-50%, -50%); mix-blend-mode: difference;
-                transition: transform 0.1s ease-out; will-change: transform, left, top;
+                /* Center the div on the coordinates calculated by JS */
+                transform: translate(-50%, -50%); 
+                mix-blend-mode: difference;
                 box-shadow: 0 0 10px #00f2ff;
+                /* We only transition the transform (scale), NOT left/top, 
+                   because JS handles the movement physics */
+                transition: transform 0.2s ease-out; 
+                will-change: left, top, transform;
             }
-            #cursor.hovering { transform: translate(-50%, -50%) scale(5); opacity: 0.6; }
+            #cursor.hovering { 
+                transform: translate(-50%, -50%) scale(5); 
+                opacity: 0.4; 
+            }
+            #cursor.clicking {
+                transform: translate(-50%, -50%) scale(0.8);
+            }
         }
 
         /* --- REGIONAL MASK & HIGHLIGHT --- */
         .region-mask {
             fill: #000;
-            fill-opacity: 0.5; /* 50% Black Mask */
+            fill-opacity: 0.5;
             stroke: none;
             pointer-events: none !important;
         }
 
         .region-highlight {
-            filter: drop-shadow(0 0 15px #00f2ff); /* Neon Glow Outline */
+            filter: drop-shadow(0 0 15px #00f2ff);
             pointer-events: none !important;
         }
 
@@ -165,19 +176,57 @@
     let activeOverlay = null;
     let allMarkers = [];
 
-    // --- CURSOR LOGIC ---
-    const cursor = document.getElementById('cursor');
-    document.addEventListener('mousemove', (e) => {
-        cursor.style.left = e.clientX + 'px';
-        cursor.style.top = e.clientY + 'px';
-    });
-    document.addEventListener('mouseover', (e) => {
-        if (e.target.tagName === 'BUTTON' || e.target.tagName === 'A' || e.target.tagName === 'SELECT' || e.target.classList.contains('leaflet-marker-icon')) {
-            cursor.classList.add('hovering');
-        } else {
-            cursor.classList.remove('hovering');
+    // --- SMOOTH LAGGING CURSOR LOGIC ---
+    (function () {
+        const cursor = document.getElementById('cursor');
+        if (!cursor || !window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
+
+        let mouseX = window.innerWidth / 2;
+        let mouseY = window.innerHeight / 2;
+        let cursorX = mouseX;
+        let cursorY = mouseY;
+
+        // 1. Track the actual mouse position
+        document.addEventListener('mousemove', function (e) {
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+        }, { passive: true });
+
+        // 2. Animate the cursor div to follow with lag
+        function animate() {
+            // Factor: 0.15 = standard lag. 
+            // 0.08 = very smooth/heavy lag (as requested)
+            const smoothingFactor = 0.08; 
+            
+            cursorX += (mouseX - cursorX) * smoothingFactor;
+            cursorY += (mouseY - cursorY) * smoothingFactor;
+            
+            cursor.style.left = cursorX + 'px';
+            cursor.style.top = cursorY + 'px';
+            
+            requestAnimationFrame(animate);
         }
-    });
+        animate();
+
+        // 3. Click States
+        document.addEventListener('mousedown', function () { cursor.classList.add('clicking'); });
+        document.addEventListener('mouseup', function () { cursor.classList.remove('clicking'); });
+
+        // 4. Hover States: Text & Map Pinpoints ONLY
+        const hoverTargets = [
+            'h1', 'h2', 'h3', 'p', 'span', 'strong', // Text elements
+            'a', 'button', 'input', 'select', 'label', // Interactive UI
+            '.leaflet-marker-icon' // Map Pinpoints
+        ].join(', ');
+
+        document.addEventListener('mouseover', function (e) {
+            if (e.target.closest(hoverTargets)) cursor.classList.add('hovering');
+        });
+
+        document.addEventListener('mouseout', function (e) {
+            if (e.target.closest(hoverTargets)) cursor.classList.remove('hovering');
+        });
+    })();
 
     // --- LOADING LOGIC ---
     const loaderTimeout = setTimeout(() => {
@@ -283,7 +332,7 @@
                 spot.marker.setOpacity(1);
                 spot.marker.getElement()?.style.setProperty('display', 'block');
             } else {
-                spot.marker.setOpacity(0.1); // Dim non-matching spots
+                spot.marker.setOpacity(0.1); 
             }
         });
     }
