@@ -30,23 +30,19 @@
         @media (hover: hover) and (pointer: fine) {
             * { cursor: none !important; }
             #cursor {
-                width: 0.75rem; height: 0.75rem; background-color: #00f2ff;
+                width: 1rem; height: 1rem; 
+                background-color: white; /* White creates the best "Invert" effect with difference mode */
                 border-radius: 50%; position: fixed; pointer-events: none; z-index: 99999;
-                /* Center the div on the coordinates calculated by JS */
                 transform: translate(-50%, -50%); 
-                mix-blend-mode: difference;
-                box-shadow: 0 0 10px #00f2ff;
-                /* We only transition the transform (scale), NOT left/top, 
-                   because JS handles the movement physics */
-                transition: transform 0.2s ease-out; 
-                will-change: left, top, transform;
+                mix-blend-mode: difference; /* This inverts the colors behind it */
+                transition: transform 0.15s ease-out; /* Smooth scale transition */
+                will-change: transform, left, top;
             }
             #cursor.hovering { 
-                transform: translate(-50%, -50%) scale(5); 
-                opacity: 0.4; 
+                transform: translate(-50%, -50%) scale(4); 
             }
             #cursor.clicking {
-                transform: translate(-50%, -50%) scale(0.8);
+                transform: translate(-50%, -50%) scale(0.5);
             }
         }
 
@@ -57,7 +53,6 @@
             stroke: none;
             pointer-events: none !important;
         }
-
         .region-highlight {
             filter: drop-shadow(0 0 15px #00f2ff);
             pointer-events: none !important;
@@ -68,6 +63,7 @@
             background: none; border: none; box-shadow: none;
             color: rgba(255,255,255,0.7); font-size: 10px; font-weight: bold;
             letter-spacing: 1px; text-transform: uppercase; text-shadow: 0 0 5px black;
+            pointer-events: auto; /* Ensures hover events are captured */
         }
 
         /* --- UI ELEMENTS --- */
@@ -77,13 +73,12 @@
             padding: 8px 25px; border-radius: 50px; border: 1px solid #00f2ff;
             letter-spacing: 2px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); pointer-events: none;
         }
-        #title-card h1 { margin: 0; font-size: 22px; }
+        #title-card h1 { margin: 0; font-size: 22px; pointer-events: auto; }
 
         #controls-container {
             position: absolute; top: 20px; left: 20px; z-index: 1000;
             display: flex; flex-direction: column; gap: 8px;
         }
-
         #region-select, #search-bar { 
             background: rgba(0,0,0,0.8); color: white; border: 1px solid #00f2ff; 
             padding: 12px; border-radius: 8px; font-weight: bold; outline: none; width: 220px;
@@ -101,14 +96,18 @@
         #info-panel.active { right: 0; }
         .close-btn { cursor: pointer; float: right; font-size: 30px; line-height: 1; }
 
+        /* --- TIDE LIGHTS CSS --- */
         .tide-rating-container { display: flex; justify-content: space-between; margin-top: 15px; gap: 8px; }
         .tide-light { 
             flex: 1; padding: 10px 4px; border-radius: 6px; text-align: center; 
             font-size: 10px; font-weight: bold; color: white; text-transform: uppercase;
+            background-color: #ddd; /* Default grey if no rating */
         }
-        .light-1 { background: #ff4444; }
-        .light-2 { background: #ffbb33; }
-        .light-3 { background: #00c851; }
+        /* Specific colors for ratings */
+        .tide-light.light-1 { background-color: #ff4444 !important; } /* BAD */
+        .tide-light.light-2 { background-color: #ffbb33 !important; } /* OK */
+        .tide-light.light-3 { background-color: #00c851 !important; } /* GOOD */
+
         .tide-label { color: #888; font-size: 9px; margin-bottom: 4px; display: block; text-align: center; font-weight: bold; }
         
         .hue-blue { filter: hue-rotate(140deg); }
@@ -194,16 +193,11 @@
 
         // 2. Animate the cursor div to follow with lag
         function animate() {
-            // Factor: 0.15 = standard lag. 
-            // 0.08 = very smooth/heavy lag (as requested)
-            const smoothingFactor = 0.08; 
-            
+            const smoothingFactor = 0.08; // Heavy lag for smooth feel
             cursorX += (mouseX - cursorX) * smoothingFactor;
             cursorY += (mouseY - cursorY) * smoothingFactor;
-            
             cursor.style.left = cursorX + 'px';
             cursor.style.top = cursorY + 'px';
-            
             requestAnimationFrame(animate);
         }
         animate();
@@ -212,11 +206,13 @@
         document.addEventListener('mousedown', function () { cursor.classList.add('clicking'); });
         document.addEventListener('mouseup', function () { cursor.classList.remove('clicking'); });
 
-        // 4. Hover States: Text & Map Pinpoints ONLY
+        // 4. Hover States
+        // Added: h1-h6 (Titles), .city-label (City Names), .leaflet-marker-icon (Pins)
         const hoverTargets = [
-            'h1', 'h2', 'h3', 'p', 'span', 'strong', // Text elements
-            'a', 'button', 'input', 'select', 'label', // Interactive UI
-            '.leaflet-marker-icon' // Map Pinpoints
+            'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'strong', 
+            'a', 'button', 'input', 'select', 'label', 
+            '.leaflet-marker-icon', // Map Pins
+            '.city-label'           // City Names
         ].join(', ');
 
         document.addEventListener('mouseover', function (e) {
@@ -231,7 +227,6 @@
     // --- LOADING LOGIC ---
     const loaderTimeout = setTimeout(() => {
         hideLoader();
-        console.warn("Loading took too long - bypassing loader.");
     }, 5000); 
 
     function hideLoader() {
@@ -247,15 +242,13 @@
     async function loadGeoData() {
         try {
             const bResp = await fetch('cdem-group-boundaries.json');
-            if (!bResp.ok) throw new Error("Boundaries file not found");
-            const bData = await bResp.json();
-            
-            L.geoJSON(bData, {
-                onEachFeature: (feature, layer) => {
-                    boundaryLayer.addLayer(layer);
-                },
-                style: { opacity: 0, fillOpacity: 0, interactive: false }
-            });
+            if (bResp.ok) {
+                const bData = await bResp.json();
+                L.geoJSON(bData, {
+                    onEachFeature: (feature, layer) => boundaryLayer.addLayer(layer),
+                    style: { opacity: 0, fillOpacity: 0, interactive: false }
+                });
+            }
 
             const cResp = await fetch('city.json');
             if (cResp.ok) {
@@ -268,7 +261,7 @@
                                 html: `<span>${feature.properties.NAME || feature.properties.name || ""}</span>`,
                                 iconSize: [100, 20]
                             }),
-                            interactive: false
+                            interactive: true // Set to true so cursor detects it
                         });
                     }
                 }).addTo(map);
@@ -288,35 +281,23 @@
             const props = layer.feature.properties;
             for (let key in props) {
                 const value = String(props[key]).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
-                if (value.includes(target)) {
-                    foundFeature = layer.feature;
-                    break;
-                }
+                if (value.includes(target)) { foundFeature = layer.feature; break; }
             }
         });
 
         if (foundFeature) {
             activeOverlay = L.layerGroup().addTo(map);
-
-            // 1. CREATE DARK MASK (World rectangle with a hole)
             const worldBox = [[-90, -180], [-90, 180], [90, 180], [90, -180]];
             const regionCoords = foundFeature.geometry.type === "MultiPolygon" 
                 ? foundFeature.geometry.coordinates.map(poly => poly[0].map(pt => [pt[1], pt[0]]))
                 : foundFeature.geometry.coordinates.map(ring => ring.map(pt => [pt[1], pt[0]]));
 
             L.polygon([worldBox, ...regionCoords], {
-                className: 'region-mask',
-                color: 'black',
-                weight: 0,
-                fillOpacity: 0.5,
-                interactive: false
+                className: 'region-mask', color: 'black', weight: 0, fillOpacity: 0.5, interactive: false
             }).addTo(activeOverlay);
 
-            // 2. CREATE GLOWING OUTLINE
             L.geoJSON(foundFeature, {
-                className: 'region-highlight',
-                style: { color: '#00f2ff', weight: 3, fillOpacity: 0, opacity: 1 },
-                interactive: false
+                className: 'region-highlight', style: { color: '#00f2ff', weight: 3, fillOpacity: 0, opacity: 1 }, interactive: false
             }).addTo(activeOverlay);
 
             map.flyToBounds(L.geoJSON(foundFeature).getBounds(), { padding: [50, 50], duration: 1.8 });
@@ -364,10 +345,20 @@
         document.getElementById('info-panel').classList.add('active');
     }
 
+    // Fixed UpdateLight function to reliably remove old classes and add new ones
     function updateLight(id, rating) {
         const el = document.getElementById(id);
-        el.className = 'tide-light light-' + rating;
-        el.innerText = rating === 3 ? 'GOOD' : rating === 2 ? 'OK' : 'BAD';
+        
+        // Reset classes
+        el.className = 'tide-light'; 
+        
+        // Add specific rating class if valid
+        if (rating === 1 || rating === 2 || rating === 3) {
+            el.classList.add('light-' + rating);
+            el.innerText = rating === 3 ? 'GOOD' : rating === 2 ? 'OK' : 'BAD';
+        } else {
+            el.innerText = '-';
+        }
     }
 
     function closePanel() { document.getElementById('info-panel').classList.remove('active'); }
