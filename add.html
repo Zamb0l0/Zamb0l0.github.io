@@ -16,10 +16,13 @@
             width: 100%; padding: 12px; background: #1a1d21; border: 1px solid #333; 
             border-radius: 8px; color: white; box-sizing: border-box; outline: none;
         }
-        input:focus { border-color: #00f2ff; }
+        input:focus, select:focus, textarea:focus { border-color: #00f2ff; }
 
         #picker-map { height: 250px; width: 100%; border-radius: 12px; margin-top: 10px; border: 1px solid #333; }
         
+        .tide-grid { display: flex; gap: 10px; margin-top: 5px; }
+        .tide-grid div { flex: 1; }
+
         .btn-submit { 
             width: 100%; padding: 15px; background: #00f2ff; color: black; border: none; 
             border-radius: 8px; font-weight: bold; font-size: 16px; margin-top: 25px; cursor: pointer;
@@ -27,6 +30,9 @@
         }
         .btn-submit:active { transform: scale(0.98); }
         .back-link { display: block; text-align: center; margin-top: 20px; color: #888; text-decoration: none; font-size: 14px; }
+
+        /* Prevent custom cursor interference if applicable */
+        * { cursor: auto !important; } 
     </style>
 </head>
 <body>
@@ -44,7 +50,35 @@
         <label>3. DESCRIPTION</label>
         <textarea id="spot-desc" rows="3" placeholder="What makes this spot good?"></textarea>
 
-        <label>4. UPLOAD PHOTO</label>
+        <label>4. TIDE RATINGS</label>
+        <div class="tide-grid">
+            <div>
+                <span style="font-size: 9px; color: #555;">LOW</span>
+                <select id="rate-low">
+                    <option value="1">BAD</option>
+                    <option value="2" selected>OK</option>
+                    <option value="3">GOOD</option>
+                </select>
+            </div>
+            <div>
+                <span style="font-size: 9px; color: #555;">MID</span>
+                <select id="rate-mid">
+                    <option value="1">BAD</option>
+                    <option value="2" selected>OK</option>
+                    <option value="3">GOOD</option>
+                </select>
+            </div>
+            <div>
+                <span style="font-size: 9px; color: #555;">HIGH</span>
+                <select id="rate-high">
+                    <option value="1">BAD</option>
+                    <option value="2" selected>OK</option>
+                    <option value="3">GOOD</option>
+                </select>
+            </div>
+        </div>
+
+        <label style="margin-top: 20px;">5. UPLOAD PHOTO</label>
         <input type="file" id="image-input" accept="image/*">
 
         <button class="btn-submit" onclick="submitSpot()">UPLOAD TO AOTEAROA</button>
@@ -54,7 +88,6 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
-        // --- INITIALIZE PICKER MAP ---
         const pickerMap = L.map('picker-map').setView([-40.9, 174.88], 5);
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(pickerMap);
 
@@ -69,13 +102,17 @@
             document.getElementById('coords-display').innerText = `LAT: ${lat.toFixed(4)} | LNG: ${lng.toFixed(4)}`;
         });
 
-        // --- SUPABASE CONFIG ---
         const sb = supabase.createClient('https://igntxtfvlcewvqazkwyf.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlnbnR4dGZ2bGNld3ZxYXprd3lmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxOTM0ODMsImV4cCI6MjA4NTc2OTQ4M30.mxlSU_vXTzcgJO-WtB-qp9m9lKlC_PuYq2c__9m1UR8');
 
         async function submitSpot() {
             const name = document.getElementById('spot-name').value;
             const desc = document.getElementById('spot-desc').value;
             const file = document.getElementById('image-input').files[0];
+            
+            // Tide values
+            const rLow = document.getElementById('rate-low').value;
+            const rMid = document.getElementById('rate-mid').value;
+            const rHigh = document.getElementById('rate-high').value;
 
             if (!name || !lat || !file) {
                 alert("Please provide a name, location (click map), and a photo.");
@@ -83,29 +120,29 @@
             }
 
             try {
-                // 1. Upload Image to Storage
                 const fileExt = file.name.split('.').pop();
                 const fileName = `${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
                 const filePath = `uploads/${fileName}`;
 
                 const { data: uploadData, error: uploadError } = await sb.storage
-                    .from('spot-images') // Ensure this bucket is PUBLIC in Supabase
+                    .from('spot-images')
                     .upload(filePath, file);
 
                 if (uploadError) throw uploadError;
 
-                // 2. Get the URL
                 const { data: urlData } = sb.storage.from('spot-images').getPublicUrl(filePath);
                 const imageUrl = urlData.publicUrl;
 
-                // 3. Insert Data to 'spots' Table
                 const { error: dbError } = await sb.from('spots').insert([{
                     name: name,
                     description: desc,
                     lat: lat,
                     lng: lng,
                     image_url: imageUrl,
-                    is_approved: false // Moderate entries before they go live
+                    rating_low: parseInt(rLow),
+                    rating_mid: parseInt(rMid),
+                    rating_high: parseInt(rHigh),
+                    is_approved: false 
                 }]);
 
                 if (dbError) throw dbError;
