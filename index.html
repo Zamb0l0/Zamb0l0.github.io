@@ -150,33 +150,49 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
-    <script>
-        // ... (Keep your existing cursor and map initialization code) ...
+   <script>
+    // --- MAP INITIALIZATION ---
+    const map = L.map('map', { zoomControl: false }).setView([-40.9, 174.88], 6);
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
 
-        const map = L.map('map', { zoomControl: false }).setView([-40.9, 174.88], 6);
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
+    let boundaryLayer = L.layerGroup().addTo(map);
+    let activeOverlay = null;
+    let allMarkers = [];
 
-        let boundaryLayer = L.layerGroup().addTo(map);
-        let activeOverlay = null;
-        let allMarkers = [];
+    // --- LOADING LOGIC ---
+    // Safety net: if things take longer than 5s, show the map anyway
+    const loaderTimeout = setTimeout(() => {
+        hideLoader();
+        console.warn("Loading took too long - bypassing loader.");
+    }, 5000); 
 
-        async function loadGeoData() {
-            try {
-                // FETCHING THE DATA
-                const bResp = await fetch('cdem-group-boundaries.json');
-                if (!bResp.ok) throw new Error("Boundaries file not found");
-                const bData = await bResp.json();
-                
-                // ADDING TO HIDDEN LAYER FOR SEARCHING
-                L.geoJSON(bData, {
-                    onEachFeature: (feature, layer) => {
-                        boundaryLayer.addLayer(layer);
-                    },
-                    style: { opacity: 0, fillOpacity: 0, interactive: false }
-                });
+    function hideLoader() {
+        const loader = document.getElementById('loader');
+        if (loader) {
+            loader.style.opacity = '0';
+            setTimeout(() => { loader.style.visibility = 'hidden'; }, 800);
+        }
+        clearTimeout(loaderTimeout);
+    }
 
-                // LOAD CITIES
-                const cResp = await fetch('city.json');
+    // --- DATA LOADING ---
+    async function loadGeoData() {
+        try {
+            // Load Boundaries
+            const bResp = await fetch('cdem-group-boundaries.json');
+            if (!bResp.ok) throw new Error("Boundaries file not found");
+            const bData = await bResp.json();
+            
+            L.geoJSON(bData, {
+                onEachFeature: (feature, layer) => {
+                    boundaryLayer.addLayer(layer);
+                },
+                style: { opacity: 0, fillOpacity: 0, interactive: false }
+            });
+
+            // Load Cities
+            const cResp = await fetch('city.json');
+            if (cResp.ok) {
                 const cData = await cResp.json();
                 L.geoJSON(cData, {
                     pointToLayer: (feature, latlng) => {
@@ -190,51 +206,83 @@
                         });
                     }
                 }).addTo(map);
-            } catch (e) { console.error("Error loading GeoData:", e); }
-        }
-
-        function handleRegionChange(regionName) {
-            console.log("Selected:", regionName);
-            if (activeOverlay) map.removeLayer(activeOverlay);
-            if (regionName === "nz") { map.flyTo([-40.9, 174.88], 6); return; }
-
-            const target = regionName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
-            let foundLayer = null;
-
-            boundaryLayer.eachLayer(layer => {
-                // WE SEARCH EVERY PROPERTY KEY IN THE JSON
-                const props = layer.feature.properties;
-                for (let key in props) {
-                    const value = String(props[key]).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
-                    if (value.includes(target)) {
-                        foundLayer = layer;
-                        break;
-                    }
-                }
-            });
-
-            if (foundLayer) {
-                activeOverlay = L.geoJSON(foundLayer.feature, {
-                    className: 'region-overlay',
-                    style: { 
-                        color: '#00f2ff', 
-                        fillColor: '#00f2ff', 
-                        fillOpacity: 0.15, 
-                        weight: 12, 
-                        stroke: true 
-                    },
-                    interactive: false
-                }).addTo(map);
-
-                map.flyToBounds(foundLayer.getBounds(), { padding: [50, 50], duration: 1.8 });
-            } else {
-                console.warn("Could not find a matching polygon for:", regionName);
             }
+        } catch (e) { 
+            console.error("GeoData Error:", e.message); 
         }
+    }
 
-        // ... (Keep the rest of your Supabase / Spot loading code) ...
+    // --- REGION SEARCH LOGIC ---
+    function handleRegionChange(regionName) {
+        console.log("Selected:", regionName);
+        if (activeOverlay) map.removeLayer(activeOverlay);
+        if (regionName === "nz") { map.flyTo([-40.9, 174.88], 6); return; }
 
-        loadGeoData().then(loadSpots);
-    </script>
+        const target = regionName.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+        let foundLayer = null;
+
+        boundaryLayer.eachLayer(layer => {
+            const props = layer.feature.properties;
+            for (let key in props) {
+                const value = String(props[key]).normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase();
+                if (value.includes(target)) {
+                    foundLayer = layer;
+                    break;
+                }
+            }
+        });
+
+        if (foundLayer) {
+            activeOverlay = L.geoJSON(foundLayer.feature, {
+                className: 'region-overlay',
+                style: { 
+                    color: '#00f2ff', 
+                    fillColor: '#00f2ff', 
+                    fillOpacity: 0.15, 
+                    weight: 12, 
+                    stroke: true 
+                },
+                interactive: false
+            }).addTo(map);
+
+            map.flyToBounds(foundLayer.getBounds(), { padding: [50, 50], duration: 1.8 });
+        } else {
+            console.warn("No match found for:", regionName);
+        }
+    }
+
+    // --- SUPABASE & INITIALIZATION ---
+    const sb = supabase.createClient('https://igntxtfvlcewvqazkwyf.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlnbnR4dGZ2bGNld3ZxYXprd3lmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxOTM0ODMsImV4cCI6MjA4NTc2OTQ4M30.mxlSU_vXTzcgJO-WtB-qp9m9lKlC_PuYq2c__9m1UR8');
+
+    async function loadSpots() {
+        const { data } = await sb.from('spots').select('*').eq('is_approved', true);
+        if (data) {
+            data.forEach(spot => {
+                const colorClass = spot.spot_type === 'wave' ? 'hue-blue' : 'hue-green';
+                const marker = L.marker([spot.lat, spot.lng]).addTo(map);
+                if (marker._icon) marker._icon.classList.add(colorClass);
+                marker.on('click', () => openSpot(spot));
+                spot.marker = marker;
+                allMarkers.push(spot);
+            });
+        }
+    }
+
+    // Launch everything
+    async function init() {
+        try {
+            await Promise.all([
+                loadGeoData().catch(e => console.error(e)),
+                loadSpots().catch(e => console.error(e))
+            ]);
+        } finally {
+            hideLoader();
+        }
+    }
+
+    init();
+
+    // ... (Your searchSpots, openSpot, updateLight, and closePanel functions here) ...
+</script>
 </body>
 </html>
