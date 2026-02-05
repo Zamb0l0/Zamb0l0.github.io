@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MODERATION | SKIM AOTEAROA</title>
+    <style>
+        body { background: #0b0d0f; color: white; font-family: sans-serif; padding: 20px; }
+        .spot-card { 
+            background: #1a1d21; border: 1px solid #333; border-radius: 12px; 
+            padding: 20px; margin-bottom: 20px; display: flex; gap: 20px; align-items: center;
+        }
+        .spot-info { flex: 1; }
+        img { width: 150px; height: 100px; object-fit: cover; border-radius: 8px; border: 1px solid #00f2ff; }
+        .btn-approve { background: #00c851; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; font-weight: bold; }
+        .btn-delete { background: #ff4444; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; }
+        h1 { color: #00f2ff; border-bottom: 1px solid #333; padding-bottom: 10px; }
+        .rating-badge { font-size: 10px; padding: 3px 6px; background: #333; border-radius: 4px; margin-right: 5px; }
+    </style>
+</head>
+<body>
+
+    <h1>PENDING APPROVAL</h1>
+    <div id="pending-list">Loading submissions...</div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script>
+        const sb = supabase.createClient('https://igntxtfvlcewvqazkwyf.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlnbnR4dGZ2bGNld3ZxYXprd3lmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxOTM0ODMsImV4cCI6MjA4NTc2OTQ4M30.mxlSU_vXTzcgJO-WtB-qp9m9lKlC_PuYq2c__9m1UR8');
+
+        // Simple Admin Shield
+        const pass = prompt("Enter Admin Password:");
+        if (pass !== "SKIM2024") { // Change this to your preferred secret password
+            alert("Unauthorized");
+            window.location.href = "index.html";
+        }
+
+        async function loadPending() {
+            const { data, error } = await sb
+                .from('spots')
+                .select('*')
+                .eq('is_approved', false);
+
+            const container = document.getElementById('pending-list');
+            container.innerHTML = "";
+
+            if (data.length === 0) {
+                container.innerHTML = "<p>All caught up! No pending spots.</p>";
+                return;
+            }
+
+            data.forEach(spot => {
+                const card = document.createElement('div');
+                card.className = 'spot-card';
+                card.innerHTML = `
+                    <img src="${spot.image_url}" onerror="this.src='https://via.placeholder.com/150'">
+                    <div class="spot-info">
+                        <h3>${spot.name}</h3>
+                        <p style="font-size: 13px; color: #ccc;">${spot.description || "No description"}</p>
+                        <div>
+                            <span class="rating-badge">L: ${spot.rating_low}</span>
+                            <span class="rating-badge">M: ${spot.rating_mid}</span>
+                            <span class="rating-badge">H: ${spot.rating_high}</span>
+                        </div>
+                    </div>
+                    <button class="btn-approve" onclick="approveSpot(${spot.id})">APPROVE</button>
+                    <button class="btn-delete" onclick="deleteSpot(${spot.id})">DELETE</button>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        async function approveSpot(id) {
+            const { error } = await sb
+                .from('spots')
+                .update({ is_approved: true })
+                .eq('id', id);
+            
+            if (!error) loadPending();
+            else alert("Error approving");
+        }
+
+        async function deleteSpot(id) {
+            if (!confirm("Are you sure you want to trash this?")) return;
+            const { error } = await sb
+                .from('spots')
+                .delete()
+                .eq('id', id);
+            
+            if (!error) loadPending();
+            else alert("Error deleting");
+        }
+
+        loadPending();
+    </script>
+</body>
+</html>
