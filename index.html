@@ -31,11 +31,11 @@
             * { cursor: none !important; }
             #cursor {
                 width: 1rem; height: 1rem; 
-                background-color: white; /* White creates the best "Invert" effect with difference mode */
+                background-color: white; /* White + Difference = Invert */
                 border-radius: 50%; position: fixed; pointer-events: none; z-index: 99999;
                 transform: translate(-50%, -50%); 
-                mix-blend-mode: difference; /* This inverts the colors behind it */
-                transition: transform 0.15s ease-out; /* Smooth scale transition */
+                mix-blend-mode: difference; /* INVERTS COLORS BENEATH */
+                transition: transform 0.15s ease-out; 
                 will-change: transform, left, top;
             }
             #cursor.hovering { 
@@ -63,7 +63,7 @@
             background: none; border: none; box-shadow: none;
             color: rgba(255,255,255,0.7); font-size: 10px; font-weight: bold;
             letter-spacing: 1px; text-transform: uppercase; text-shadow: 0 0 5px black;
-            pointer-events: auto; /* Ensures hover events are captured */
+            pointer-events: auto; 
         }
 
         /* --- UI ELEMENTS --- */
@@ -101,9 +101,8 @@
         .tide-light { 
             flex: 1; padding: 10px 4px; border-radius: 6px; text-align: center; 
             font-size: 10px; font-weight: bold; color: white; text-transform: uppercase;
-            background-color: #ddd; /* Default grey if no rating */
+            background-color: #ddd; 
         }
-        /* Specific colors for ratings */
         .tide-light.light-1 { background-color: #ff4444 !important; } /* BAD */
         .tide-light.light-2 { background-color: #ffbb33 !important; } /* OK */
         .tide-light.light-3 { background-color: #00c851 !important; } /* GOOD */
@@ -167,33 +166,46 @@
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
    <script>
-    // --- MAP INITIALIZATION ---
-    const map = L.map('map', { zoomControl: false }).setView([-40.9, 174.88], 6);
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
+    // --- 1. DEFINE NZ BOUNDS ---
+    // This rectangle covers NZ. The map will not load data outside this box.
+    const nzBounds = [
+        [-48.5, 165.0], // Southwest corner (Stewart Island approx)
+        [-33.0, 180.0]  // Northeast corner (North Cape approx)
+    ];
+
+    // --- 2. MAP INITIALIZATION WITH BOUNDS ---
+    const map = L.map('map', { 
+        zoomControl: false,
+        maxBounds: nzBounds,      // Hard lock: User cannot pan outside NZ
+        maxBoundsViscosity: 1.0,  // "Bounciness" of the edge (1.0 = solid wall)
+        minZoom: 5                // Prevent zooming out to see the empty world
+    }).setView([-40.9, 174.88], 6);
+
+    // --- 3. TILE LAYER WITH BOUNDS ---
+    // We add 'bounds' here too. This stops the browser from requesting tiles outside NZ.
+    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        bounds: nzBounds,
+        attribution: 'Tiles &copy; Esri'
+    }).addTo(map);
 
     let boundaryLayer = L.layerGroup().addTo(map);
     let activeOverlay = null;
     let allMarkers = [];
 
-    // --- SMOOTH LAGGING CURSOR LOGIC ---
+    // --- CURSOR LOGIC ---
     (function () {
         const cursor = document.getElementById('cursor');
         if (!cursor || !window.matchMedia('(hover: hover) and (pointer: fine)').matches) return;
 
-        let mouseX = window.innerWidth / 2;
-        let mouseY = window.innerHeight / 2;
-        let cursorX = mouseX;
-        let cursorY = mouseY;
+        let mouseX = window.innerWidth / 2, mouseY = window.innerHeight / 2;
+        let cursorX = mouseX, cursorY = mouseY;
 
-        // 1. Track the actual mouse position
         document.addEventListener('mousemove', function (e) {
-            mouseX = e.clientX;
-            mouseY = e.clientY;
+            mouseX = e.clientX; mouseY = e.clientY;
         }, { passive: true });
 
-        // 2. Animate the cursor div to follow with lag
         function animate() {
-            const smoothingFactor = 0.08; // Heavy lag for smooth feel
+            const smoothingFactor = 0.08; 
             cursorX += (mouseX - cursorX) * smoothingFactor;
             cursorY += (mouseY - cursorY) * smoothingFactor;
             cursor.style.left = cursorX + 'px';
@@ -202,17 +214,13 @@
         }
         animate();
 
-        // 3. Click States
         document.addEventListener('mousedown', function () { cursor.classList.add('clicking'); });
         document.addEventListener('mouseup', function () { cursor.classList.remove('clicking'); });
 
-        // 4. Hover States
-        // Added: h1-h6 (Titles), .city-label (City Names), .leaflet-marker-icon (Pins)
         const hoverTargets = [
             'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'span', 'strong', 
             'a', 'button', 'input', 'select', 'label', 
-            '.leaflet-marker-icon', // Map Pins
-            '.city-label'           // City Names
+            '.leaflet-marker-icon', '.city-label'
         ].join(', ');
 
         document.addEventListener('mouseover', function (e) {
@@ -224,11 +232,8 @@
         });
     })();
 
-    // --- LOADING LOGIC ---
-    const loaderTimeout = setTimeout(() => {
-        hideLoader();
-    }, 5000); 
-
+    // --- LOADING ---
+    const loaderTimeout = setTimeout(() => { hideLoader(); }, 5000); 
     function hideLoader() {
         const loader = document.getElementById('loader');
         if (loader) {
@@ -238,7 +243,7 @@
         clearTimeout(loaderTimeout);
     }
 
-    // --- DATA LOADING ---
+    // --- GEO DATA ---
     async function loadGeoData() {
         try {
             const bResp = await fetch('cdem-group-boundaries.json');
@@ -261,7 +266,7 @@
                                 html: `<span>${feature.properties.NAME || feature.properties.name || ""}</span>`,
                                 iconSize: [100, 20]
                             }),
-                            interactive: true // Set to true so cursor detects it
+                            interactive: true 
                         });
                     }
                 }).addTo(map);
@@ -269,7 +274,7 @@
         } catch (e) { console.error("GeoData Error:", e.message); }
     }
 
-    // --- REGION SEARCH & MASK LOGIC ---
+    // --- REGIONS ---
     function handleRegionChange(regionName) {
         if (activeOverlay) map.removeLayer(activeOverlay);
         if (regionName === "nz") { map.flyTo([-40.9, 174.88], 6); return; }
@@ -304,7 +309,7 @@
         }
     }
 
-    // --- SEARCH SPOTS LOGIC ---
+    // --- SPOTS ---
     function searchSpots(query) {
         const q = query.toLowerCase();
         allMarkers.forEach(spot => {
@@ -318,7 +323,6 @@
         });
     }
 
-    // --- SUPABASE & INIT ---
     const sb = supabase.createClient('https://igntxtfvlcewvqazkwyf.supabase.co', 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlnbnR4dGZ2bGNld3ZxYXprd3lmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAxOTM0ODMsImV4cCI6MjA4NTc2OTQ4M30.mxlSU_vXTzcgJO-WtB-qp9m9lKlC_PuYq2c__9m1UR8');
 
     async function loadSpots() {
@@ -345,14 +349,9 @@
         document.getElementById('info-panel').classList.add('active');
     }
 
-    // Fixed UpdateLight function to reliably remove old classes and add new ones
     function updateLight(id, rating) {
         const el = document.getElementById(id);
-        
-        // Reset classes
         el.className = 'tide-light'; 
-        
-        // Add specific rating class if valid
         if (rating === 1 || rating === 2 || rating === 3) {
             el.classList.add('light-' + rating);
             el.innerText = rating === 3 ? 'GOOD' : rating === 2 ? 'OK' : 'BAD';
@@ -364,14 +363,10 @@
     function closePanel() { document.getElementById('info-panel').classList.remove('active'); }
 
     async function init() {
-        try {
-            await Promise.all([loadGeoData(), loadSpots()]);
-        } finally { hideLoader(); }
+        try { await Promise.all([loadGeoData(), loadSpots()]); } finally { hideLoader(); }
     }
 
-    function locateUser() {
-        map.locate({setView: true, maxZoom: 12});
-    }
+    function locateUser() { map.locate({setView: true, maxZoom: 12}); }
 
     init();
 </script>
