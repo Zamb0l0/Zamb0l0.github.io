@@ -28,10 +28,11 @@
             border-radius: 8px; font-weight: bold; font-size: 16px; margin-top: 25px; cursor: pointer;
             transition: transform 0.2s, box-shadow 0.2s;
         }
-        .btn-submit:active { transform: scale(0.98); }
+        .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
         .back-link { display: block; text-align: center; margin-top: 20px; color: #888; text-decoration: none; font-size: 14px; }
 
-        /* Prevent custom cursor interference if applicable */
+        #upload-status { text-align: center; font-size: 13px; color: #00f2ff; margin-top: 15px; display: none; letter-spacing: 1px; }
+
         * { cursor: auto !important; } 
     </style>
 </head>
@@ -47,10 +48,16 @@
         <div id="picker-map"></div>
         <p id="coords-display" style="font-size: 10px; color: #00f2ff; margin-top: 5px;">No location selected</p>
 
-        <label>3. DESCRIPTION</label>
+        <label>3. SPOT TYPE</label>
+        <select id="spot-type">
+            <option value="flat">FLATLAND (Green Marker)</option>
+            <option value="wave">SHOREBREAK/WAVE (Blue Marker)</option>
+        </select>
+
+        <label>4. DESCRIPTION</label>
         <textarea id="spot-desc" rows="3" placeholder="What makes this spot good?"></textarea>
 
-        <label>4. TIDE RATINGS</label>
+        <label>5. TIDE RATINGS</label>
         <div class="tide-grid">
             <div>
                 <span style="font-size: 9px; color: #555;">LOW</span>
@@ -78,10 +85,11 @@
             </div>
         </div>
 
-        <label style="margin-top: 20px;">5. UPLOAD PHOTO</label>
+        <label style="margin-top: 20px;">6. UPLOAD PHOTO</label>
         <input type="file" id="image-input" accept="image/*">
 
-        <button class="btn-submit" onclick="submitSpot()">UPLOAD TO AOTEAROA</button>
+        <p id="upload-status">🚀 UPLOADING TO AOTEAROA... PLEASE WAIT</p>
+        <button class="btn-submit" id="submit-btn" onclick="submitSpot()">UPLOAD SPOT</button>
         <a href="index.html" class="back-link">← BACK TO MAP</a>
     </div>
 
@@ -107,9 +115,11 @@
         async function submitSpot() {
             const name = document.getElementById('spot-name').value;
             const desc = document.getElementById('spot-desc').value;
+            const type = document.getElementById('spot-type').value;
             const file = document.getElementById('image-input').files[0];
+            const statusEl = document.getElementById('upload-status');
+            const btn = document.getElementById('submit-btn');
             
-            // Tide values
             const rLow = document.getElementById('rate-low').value;
             const rMid = document.getElementById('rate-mid').value;
             const rHigh = document.getElementById('rate-high').value;
@@ -118,6 +128,11 @@
                 alert("Please provide a name, location (click map), and a photo.");
                 return;
             }
+
+            // Show loading UI
+            statusEl.style.display = 'block';
+            btn.disabled = true;
+            btn.innerText = 'UPLOADING...';
 
             try {
                 const fileExt = file.name.split('.').pop();
@@ -136,6 +151,7 @@
                 const { error: dbError } = await sb.from('spots').insert([{
                     name: name,
                     description: desc,
+                    spot_type: type,
                     lat: lat,
                     lng: lng,
                     image_url: imageUrl,
@@ -147,12 +163,15 @@
 
                 if (dbError) throw dbError;
 
-                alert("Successfully submitted! Reviewing now.");
+                alert("Successfully submitted! Once approved, it will appear on the map.");
                 window.location.href = 'index.html';
 
             } catch (err) {
                 console.error(err);
                 alert("Error: " + err.message);
+                statusEl.style.display = 'none';
+                btn.disabled = false;
+                btn.innerText = 'UPLOAD SPOT';
             }
         }
     </script>
